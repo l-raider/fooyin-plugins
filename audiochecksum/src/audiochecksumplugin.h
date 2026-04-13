@@ -48,6 +48,9 @@ public:
     void initialise(const CorePluginContext& context) override;
     void initialise(const GuiPluginContext& context) override;
 
+    [[nodiscard]] bool hasSettings() const override;
+    void showSettings(QWidget* parent) override;
+
 private:
     void setupContextMenu();
 

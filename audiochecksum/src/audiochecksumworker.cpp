@@ -66,7 +66,7 @@ ChecksumResult AudioChecksumWorker::computeChecksum(const Track& track) const
     result.algorithm = u"MD5"_s;
 
     // Retrieve any stored tag from the track
-    const QStringList storedValues = track.extraTag(TagFieldName);
+    const QStringList storedValues = track.extraTag(tagFieldName());
     if(!storedValues.isEmpty())
         result.storedHash = storedValues.first().toLower();
 

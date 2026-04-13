@@ -173,7 +173,7 @@ void AudioChecksumResults::saveToTags()
     TrackList tracks;
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
-        result.track.replaceExtraTag(TagFieldName, result.computedHash);
+        result.track.replaceExtraTag(tagFieldName(), result.computedHash);
         tracks.push_back(result.track);
     }
 

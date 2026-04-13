@@ -35,4 +35,6 @@ create_fooyin_plugin(
             src/audiochecksumresults.cpp
             src/audiochecksumplugin.h
             src/audiochecksumplugin.cpp
+            src/audiochecksumplugin_settings.h
+            src/audiochecksumplugin_settings.cpp
 )

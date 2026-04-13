@@ -20,23 +20,24 @@
 
 #include <core/coresettings.h>
 
-#include <QString>
+#include <QDialog>
+
+class QLineEdit;
 
 namespace Fooyin::AudioChecksum {
 
-// Default tag field written to track metadata
-constexpr auto DefaultTagFieldName = "AUDIOCHECKSUM_MD5";
-
-// Settings keys
-constexpr auto SettingTagField     = "AudioChecksum/TagField";
-constexpr auto SettingSkipExisting = "AudioChecksum/SkipExisting";
-
-// Returns the currently configured tag field name, falling back to the default.
-inline QString tagFieldName()
+class AudioChecksumSettingsDialog : public QDialog
 {
-    FySettings s;
-    return s.value(QLatin1String{SettingTagField},
-                   QLatin1String{DefaultTagFieldName}).toString();
-}
+    Q_OBJECT
+
+public:
+    explicit AudioChecksumSettingsDialog(QWidget* parent = nullptr);
+
+    void accept() override;
+
+private:
+    FySettings m_settings;
+    QLineEdit* m_tagField;
+};
 
 } // namespace Fooyin::AudioChecksum

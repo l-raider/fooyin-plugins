@@ -20,6 +20,7 @@
 
 #include "audiochecksumdefs.h"
 #include "audiochecksumresults.h"
+#include "audiochecksumplugin_settings.h"
 
 #include <core/library/musiclibrary.h>
 #include <core/plugins/coreplugincontext.h>
@@ -80,6 +81,18 @@ void AudioChecksumPlugin::setupContextMenu()
                      this, updateAction);
 
     updateAction();
+}
+
+bool AudioChecksumPlugin::hasSettings() const
+{
+    return true;
+}
+
+void AudioChecksumPlugin::showSettings(QWidget* parent)
+{
+    auto* dlg = new AudioChecksumSettingsDialog(parent);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->show();
 }
 
 } // namespace Fooyin::AudioChecksum
