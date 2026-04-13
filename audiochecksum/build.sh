@@ -129,8 +129,7 @@ if [[ "${DO_INSTALL}" == true ]]; then
 fi
 
 if [[ "${DO_INSTALL_FLATPAK}" == true ]]; then
-    FLATPAK_APP_ID="org.fooyin.fooyin"
-    FLATPAK_PLUGIN_DIR="${HOME}/.var/app/${FLATPAK_APP_ID}/.local/lib/fooyin/plugins"
+    FLATPAK_PLUGIN_DIR="${HOME}/.local/lib/fooyin/plugins"
     echo ""
     echo "Installing plugin into Flatpak sandbox..."
     mkdir -p "${FLATPAK_PLUGIN_DIR}"
@@ -143,6 +142,5 @@ fi
 
 echo ""
 echo "To load in fooyin, copy the .so to your plugin directory:"
-echo "  ~/.local/lib/fooyin/plugins/                                           (user install)"
-echo "  ~/.var/app/org.fooyin.fooyin/.local/lib/fooyin/plugins/               (Flatpak install)"
+echo "  ~/.local/lib/fooyin/plugins/                                           (user install, also Flatpak)"
 echo "  /usr/local/lib/fooyin/plugins/                                         (system install)"
