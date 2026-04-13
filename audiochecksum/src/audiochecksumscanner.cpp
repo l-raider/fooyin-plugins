@@ -18,7 +18,13 @@
 
 #include "audiochecksumscanner.h"
 
+#include "audiochecksumdefs.h"
 #include "audiochecksumworker.h"
+
+#include <core/coresettings.h>
+
+#include <QtConcurrent/QtConcurrent>
+#include <QThread>
 
 namespace Fooyin::AudioChecksum {
 
@@ -27,33 +33,63 @@ AudioChecksumScanner::AudioChecksumScanner(std::shared_ptr<AudioLoader> audioLoa
     : QObject{parent}
     , m_worker{std::make_unique<AudioChecksumWorker>(std::move(audioLoader))}
 {
-    m_worker->moveToThread(&m_scanThread);
-    m_scanThread.start();
-
-    QObject::connect(m_worker.get(), &AudioChecksumWorker::scanningTrack,
-                     this, &AudioChecksumScanner::scanningTrack);
-    QObject::connect(m_worker.get(), &AudioChecksumWorker::trackScanned,
-                     this, &AudioChecksumScanner::trackScanned);
-    QObject::connect(m_worker.get(), &AudioChecksumWorker::scanFinished,
-                     this, &AudioChecksumScanner::scanFinished);
+    QObject::connect(&m_watcher, &QFutureWatcher<ChecksumResult>::resultReadyAt,
+                     this, &AudioChecksumScanner::onResultReadyAt);
+    QObject::connect(&m_watcher, &QFutureWatcher<ChecksumResult>::finished,
+                     this, &AudioChecksumScanner::onFinished);
 }
 
 AudioChecksumScanner::~AudioChecksumScanner()
 {
-    m_scanThread.quit();
-    m_scanThread.wait();
+    m_watcher.cancel();
+    m_watcher.waitForFinished();
 }
 
 void AudioChecksumScanner::close()
 {
-    m_worker->closeThread();
+    m_cancelled.storeRelaxed(1);
+    m_watcher.cancel();
+    // Don't waitForFinished() here — the destructor handles it safely.
+    // Calling it while the watcher's finished signal is already queued on
+    // the main thread causes a re-entrant / stale-callback crash.
 }
 
 void AudioChecksumScanner::scanTracks(const TrackList& tracks)
 {
-    QMetaObject::invokeMethod(m_worker.get(), [this, tracks]() {
-        m_worker->scanTracks(tracks);
-    });
+    m_cancelled.storeRelaxed(0);
+
+    FySettings settings;
+    const bool autoThreads = settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
+    const int threadCount = autoThreads
+        ? QThread::idealThreadCount()
+        : std::max(1, settings.value(QLatin1String{SettingConcurrencyCount},
+                                     DefaultConcurrencyCount).toInt());
+
+    m_threadPool.setMaxThreadCount(threadCount);
+
+    m_watcher.setFuture(QtConcurrent::mapped(
+        &m_threadPool,
+        tracks,
+        [this](const Track& track) -> ChecksumResult {
+            return m_worker->computeChecksum(track, m_cancelled);
+        }
+    ));
+}
+
+void AudioChecksumScanner::onResultReadyAt(int index)
+{
+    const ChecksumResult result = m_watcher.resultAt(index);
+    emit scanningTrack(result.track.filepath());
+    emit trackScanned(result);
+}
+
+void AudioChecksumScanner::onFinished()
+{
+    if(m_cancelled.loadRelaxed()) {
+        emit scanFinished({});
+        return;
+    }
+    emit scanFinished(m_watcher.future().results());
 }
 
 } // namespace Fooyin::AudioChecksum

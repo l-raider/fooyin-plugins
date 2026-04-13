@@ -37,33 +37,12 @@ namespace Fooyin::AudioChecksum {
 
 AudioChecksumWorker::AudioChecksumWorker(std::shared_ptr<AudioLoader> audioLoader,
                                          QObject* parent)
-    : Worker{parent}
+    : QObject{parent}
     , m_audioLoader{std::move(audioLoader)}
 { }
 
-void AudioChecksumWorker::scanTracks(const TrackList& tracks)
-{
-    setState(Running);
-
-    QList<ChecksumResult> results;
-    results.reserve(static_cast<qsizetype>(tracks.size()));
-
-    for(const Track& track : tracks) {
-        if(!mayRun())
-            break;
-
-        emit scanningTrack(track.filepath());
-
-        const ChecksumResult result = computeChecksum(track);
-        emit trackScanned(result);
-        results.append(result);
-    }
-
-    setState(Idle);
-    emit scanFinished(results);
-}
-
-ChecksumResult AudioChecksumWorker::computeChecksum(const Track& track) const
+ChecksumResult AudioChecksumWorker::computeChecksum(const Track& track,
+                                                     const QAtomicInt& cancelled) const
 {
     ChecksumResult result;
     result.track     = track;
@@ -109,7 +88,7 @@ ChecksumResult AudioChecksumWorker::computeChecksum(const Track& track) const
     const SampleFormat sampleFmt = fmt.sampleFormat();
 
     constexpr size_t ChunkBytes = 65536;
-    while(mayRun()) {
+    while(!cancelled.loadRelaxed()) {
         AudioBuffer buffer = loaded.decoder->readBuffer(ChunkBytes);
         if(!buffer.isValid() || buffer.byteCount() == 0)
             break;
@@ -138,7 +117,7 @@ ChecksumResult AudioChecksumWorker::computeChecksum(const Track& track) const
 
     loaded.decoder->stop();
 
-    if(!mayRun()) {
+    if(cancelled.loadRelaxed()) {
         // Cancelled — return a partial/empty result rather than a wrong hash
         result.status      = ChecksumResult::Status::Error;
         result.errorString = QObject::tr("Cancelled");

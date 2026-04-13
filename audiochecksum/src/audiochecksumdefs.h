@@ -28,8 +28,11 @@ namespace Fooyin::AudioChecksum {
 constexpr auto DefaultTagFieldName = "AUDIOCHECKSUM_MD5";
 
 // Settings keys
-constexpr auto SettingTagField     = "AudioChecksum/TagField";
-constexpr auto SettingSkipExisting = "AudioChecksum/SkipExisting";
+constexpr auto SettingTagField          = "AudioChecksum/TagField";
+constexpr auto SettingSkipExisting      = "AudioChecksum/SkipExisting";
+constexpr auto SettingConcurrencyAuto   = "AudioChecksum/ConcurrencyAuto";
+constexpr auto SettingConcurrencyCount  = "AudioChecksum/ConcurrencyCount";
+constexpr int  DefaultConcurrencyCount  = 1;
 
 // Returns the currently configured tag field name, falling back to the default.
 inline QString tagFieldName()

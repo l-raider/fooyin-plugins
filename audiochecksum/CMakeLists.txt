@@ -15,12 +15,14 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(Fooyin REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Concurrent)
 
 create_fooyin_plugin(
     audiochecksum
     JSON_IN src/audiochecksum.json.in
     DEPENDS Fooyin::Core
             Fooyin::Gui
+            Qt6::Concurrent
     SOURCES src/audiochecksumdefs.h
             src/audiochecksumresult.h
             src/flacstreaminfo.h

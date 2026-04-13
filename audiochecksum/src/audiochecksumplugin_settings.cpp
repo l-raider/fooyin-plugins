@@ -20,10 +20,16 @@
 
 #include "audiochecksumdefs.h"
 
+#include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QGridLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QSlider>
+#include <QThread>
+#include <QVBoxLayout>
 
 using namespace Qt::StringLiterals;
 
@@ -32,16 +38,63 @@ namespace Fooyin::AudioChecksum {
 AudioChecksumSettingsDialog::AudioChecksumSettingsDialog(QWidget* parent)
     : QDialog{parent}
     , m_tagField{new QLineEdit(this)}
+    , m_autoConcurrency{new QCheckBox(tr("Auto (use all CPU cores)"), this)}
+    , m_concurrencySlider{new QSlider(Qt::Horizontal, this)}
+    , m_concurrencyValueLabel{new QLabel(this)}
 {
     setWindowTitle(tr("Audio Checksum Settings"));
     setModal(true);
 
+    // --- Tag field ---
     auto* tagLabel = new QLabel(tr("Tag field name") + ":"_L1, this);
-
     m_tagField->setText(
         m_settings.value(QLatin1String{SettingTagField},
                          QLatin1String{DefaultTagFieldName}).toString());
 
+    // --- Concurrency group ---
+    const int maxThreads = std::max(1, QThread::idealThreadCount());
+
+    m_concurrencySlider->setRange(1, maxThreads);
+    m_concurrencySlider->setTickPosition(QSlider::TicksBelow);
+    m_concurrencySlider->setTickInterval(1);
+    m_concurrencySlider->setSingleStep(1);
+    m_concurrencySlider->setPageStep(1);
+
+    const bool isAuto = m_settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
+    const int savedCount = m_settings.value(QLatin1String{SettingConcurrencyCount},
+                                             DefaultConcurrencyCount).toInt();
+    m_autoConcurrency->setChecked(isAuto);
+    m_concurrencySlider->setValue(std::clamp(savedCount, 1, maxThreads));
+    m_concurrencySlider->setEnabled(!isAuto);
+
+    const auto updateValueLabel = [this, maxThreads]() {
+        m_concurrencyValueLabel->setText(
+            QString::number(m_concurrencySlider->value()) + " / "_L1 +
+            QString::number(maxThreads));
+    };
+    updateValueLabel();
+
+    QObject::connect(m_concurrencySlider, &QSlider::valueChanged,
+                     this, updateValueLabel);
+    QObject::connect(m_autoConcurrency, &QCheckBox::toggled,
+                     this, [this, updateValueLabel](bool checked) {
+                         m_concurrencySlider->setEnabled(!checked);
+                         updateValueLabel();
+                     });
+
+    auto* threadsLabel = new QLabel(tr("Threads:"), this);
+
+    auto* sliderRow = new QHBoxLayout;
+    sliderRow->addWidget(threadsLabel);
+    sliderRow->addWidget(m_concurrencySlider, 1);
+    sliderRow->addWidget(m_concurrencyValueLabel);
+
+    auto* concurrencyGroup = new QGroupBox(tr("Concurrency"), this);
+    auto* groupLayout      = new QVBoxLayout(concurrencyGroup);
+    groupLayout->addWidget(m_autoConcurrency);
+    groupLayout->addLayout(sliderRow);
+
+    // --- Buttons ---
     auto* buttons = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     QObject::connect(buttons, &QDialogButtonBox::accepted,
@@ -49,12 +102,13 @@ AudioChecksumSettingsDialog::AudioChecksumSettingsDialog(QWidget* parent)
     QObject::connect(buttons, &QDialogButtonBox::rejected,
                      this, &AudioChecksumSettingsDialog::reject);
 
+    // --- Layout ---
     auto* layout = new QGridLayout(this);
-
     int row{0};
-    layout->addWidget(tagLabel,   row, 0);
-    layout->addWidget(m_tagField, row++, 1);
-    layout->addWidget(buttons,    row++, 0, 1, 2, Qt::AlignBottom);
+    layout->addWidget(tagLabel,         row,   0);
+    layout->addWidget(m_tagField,        row++, 1);
+    layout->addWidget(concurrencyGroup,  row++, 0, 1, 2);
+    layout->addWidget(buttons,           row++, 0, 1, 2, Qt::AlignBottom);
 }
 
 void AudioChecksumSettingsDialog::accept()
@@ -62,6 +116,12 @@ void AudioChecksumSettingsDialog::accept()
     const QString value = m_tagField->text().trimmed().toUpper();
     if(!value.isEmpty())
         m_settings.setValue(QLatin1String{SettingTagField}, value);
+
+    m_settings.setValue(QLatin1String{SettingConcurrencyAuto},
+                        m_autoConcurrency->isChecked());
+    m_settings.setValue(QLatin1String{SettingConcurrencyCount},
+                        m_concurrencySlider->value());
+
     done(Accepted);
 }
 

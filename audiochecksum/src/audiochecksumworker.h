@@ -21,8 +21,8 @@
 #include "audiochecksumresult.h"
 
 #include <core/track.h>
-#include <utils/worker.h>
 
+#include <QAtomicInt>
 #include <QObject>
 
 #include <memory>
@@ -34,12 +34,14 @@ class AudioLoader;
 namespace Fooyin::AudioChecksum {
 
 /*!
- * Background worker that decodes each track to PCM and feeds the audio data
- * into QCryptographicHash to produce a content checksum.
+ * Pure computation helper: decodes a track to PCM and hashes the audio data.
  *
- * Must be moved to a QThread before calling scanTracks().
+ * computeChecksum() is safe to call from multiple threads concurrently as
+ * long as the underlying AudioLoader is thread-safe for concurrent reads.
+ * The cancelled flag is checked on every buffer iteration so that an in-
+ * progress scan can be aborted promptly.
  */
-class AudioChecksumWorker : public Worker
+class AudioChecksumWorker : public QObject
 {
     Q_OBJECT
 
@@ -47,16 +49,10 @@ public:
     explicit AudioChecksumWorker(std::shared_ptr<AudioLoader> audioLoader,
                                  QObject* parent = nullptr);
 
-    void scanTracks(const TrackList& tracks);
-
-signals:
-    void scanningTrack(const QString& filepath);
-    void trackScanned(const Fooyin::AudioChecksum::ChecksumResult& result);
-    void scanFinished(const QList<Fooyin::AudioChecksum::ChecksumResult>& results);
+    [[nodiscard]] ChecksumResult computeChecksum(const Track& track,
+                                                 const QAtomicInt& cancelled) const;
 
 private:
-    [[nodiscard]] ChecksumResult computeChecksum(const Track& track) const;
-
     std::shared_ptr<AudioLoader> m_audioLoader;
 };
 

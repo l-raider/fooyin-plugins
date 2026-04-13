@@ -22,7 +22,10 @@
 
 #include <QDialog>
 
+class QCheckBox;
+class QLabel;
 class QLineEdit;
+class QSlider;
 
 namespace Fooyin::AudioChecksum {
 
@@ -38,6 +41,9 @@ public:
 private:
     FySettings m_settings;
     QLineEdit* m_tagField;
+    QCheckBox* m_autoConcurrency;
+    QSlider*   m_concurrencySlider;
+    QLabel*    m_concurrencyValueLabel;
 };
 
 } // namespace Fooyin::AudioChecksum

@@ -22,8 +22,10 @@
 
 #include <core/track.h>
 
+#include <QAtomicInt>
+#include <QFutureWatcher>
 #include <QObject>
-#include <QThread>
+#include <QThreadPool>
 
 #include <memory>
 
@@ -36,10 +38,11 @@ namespace Fooyin::AudioChecksum {
 class AudioChecksumWorker;
 
 /*!
- * Main-thread facade around AudioChecksumWorker.
+ * Main-thread facade for parallel audio checksum scanning.
  *
- * Mirrors the RGScanner pattern: owns a QThread and a Worker, proxies
- * signals to main-thread consumers, and exposes close() for cancellation.
+ * Uses QtConcurrent::mapped with a private QThreadPool so that the thread
+ * count is configurable at runtime from the settings.  Signals are emitted
+ * from the main thread via QFutureWatcher.
  */
 class AudioChecksumScanner : public QObject
 {
@@ -60,8 +63,13 @@ signals:
     void scanFinished(const QList<Fooyin::AudioChecksum::ChecksumResult>& results);
 
 private:
-    QThread m_scanThread;
+    void onResultReadyAt(int index);
+    void onFinished();
+
     std::unique_ptr<AudioChecksumWorker> m_worker;
+    QFutureWatcher<ChecksumResult>       m_watcher;
+    QThreadPool                          m_threadPool;
+    QAtomicInt                           m_cancelled{0};
 };
 
 } // namespace Fooyin::AudioChecksum

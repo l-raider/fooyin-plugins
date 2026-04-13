@@ -154,9 +154,10 @@ void AudioChecksumResults::startScan()
 void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& /*results*/)
 {
     m_scanning = false;
-    m_scanner->close();
-    m_scanner->deleteLater();
-    m_scanner = nullptr;
+    if(m_scanner) {
+        m_scanner->deleteLater();
+        m_scanner = nullptr;
+    }
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - m_scanStart);
@@ -205,6 +206,9 @@ void AudioChecksumResults::updateSaveButton()
 void AudioChecksumResults::closeEvent(QCloseEvent* event)
 {
     if(m_scanning && m_scanner) {
+        // Disconnect first so the watcher's queued finished signal can't
+        // reach onScanFinished after we null the pointer.
+        QObject::disconnect(m_scanner, nullptr, this, nullptr);
         m_scanner->close();
         m_scanner->deleteLater();
         m_scanner = nullptr;
