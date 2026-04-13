@@ -70,7 +70,7 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
-    void startScan(bool verifyMode);
+    void startScan();
     void onScanFinished(const QList<ChecksumResult>& results);
     void saveToTags();
     void setupContextMenu();
@@ -87,7 +87,6 @@ private:
     QLabel* m_status;
     QProgressBar* m_progressBar;
     QPushButton* m_calcButton;
-    QPushButton* m_verifyButton;
     QPushButton* m_saveButton;
     QPushButton* m_closeButton;
 

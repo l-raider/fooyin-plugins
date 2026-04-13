@@ -57,8 +57,7 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     , m_status{new QLabel(
           tr("Ready — %1 track(s) selected.").arg(static_cast<int>(m_tracks.size())), this)}
     , m_progressBar{new QProgressBar(this)}
-    , m_calcButton{new QPushButton(tr("&Calculate"), this)}
-    , m_verifyButton{new QPushButton(tr("&Verify"), this)}
+    , m_calcButton{new QPushButton(tr("&Calculate && Verify"), this)}
     , m_saveButton{new QPushButton(tr("&Save to Tags"), this)}
     , m_closeButton{new QPushButton(tr("Close"), this)}
 {
@@ -88,9 +87,7 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     m_progressBar->setVisible(false);
 
     QObject::connect(m_calcButton, &QPushButton::clicked, this,
-                     [this]() { startScan(false); });
-    QObject::connect(m_verifyButton, &QPushButton::clicked, this,
-                     [this]() { startScan(true); });
+                     [this]() { startScan(); });
     QObject::connect(m_saveButton, &QPushButton::clicked, this,
                      &AudioChecksumResults::saveToTags);
     QObject::connect(m_closeButton, &QPushButton::clicked, this,
@@ -100,7 +97,6 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
 
     auto* buttonLayout = new QHBoxLayout;
     buttonLayout->addWidget(m_calcButton);
-    buttonLayout->addWidget(m_verifyButton);
     buttonLayout->addStretch();
     buttonLayout->addWidget(m_saveButton);
     buttonLayout->addWidget(m_closeButton);
@@ -113,14 +109,13 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     layout->setRowStretch(0, 1);
 }
 
-void AudioChecksumResults::startScan(bool /*verifyMode*/)
+void AudioChecksumResults::startScan()
 {
     if(m_scanning)
         return;
 
     m_scanning = true;
     m_calcButton->setEnabled(false);
-    m_verifyButton->setEnabled(false);
     m_saveButton->setEnabled(false);
 
     const int total = static_cast<int>(m_tracks.size());
@@ -165,7 +160,6 @@ void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& results)
     m_status->setText(tr("Time taken") + ": "_L1 + Utils::msToString(elapsed, false));
 
     m_calcButton->setEnabled(true);
-    m_verifyButton->setEnabled(true);
     updateSaveButton();
 }
 
