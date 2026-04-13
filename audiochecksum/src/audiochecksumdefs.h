@@ -21,7 +21,7 @@
 namespace Fooyin::AudioChecksum {
 
 // Tag field written to track metadata
-constexpr auto TagFieldName = "AUDIOCHECKSUM";
+constexpr auto TagFieldName = "AUDIOCHECKSUM_MD5";
 
 // Settings keys (for future settings page)
 constexpr auto SettingTagField     = "AudioChecksum/TagField";
