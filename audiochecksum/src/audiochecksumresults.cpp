@@ -28,6 +28,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QDesktopServices>
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QHBoxLayout>
@@ -220,11 +221,20 @@ void AudioChecksumResults::setupContextMenu()
 
                          QMenu menu{this};
 
+                         auto* openFolder =
+                             menu.addAction(tr("Open Containing Folder"));
+                         menu.addSeparator();
                          auto* copyComputed =
                              menu.addAction(tr("Copy Computed Checksum"));
                          auto* copyStored =
                              menu.addAction(tr("Copy Stored Checksum"));
                          copyStored->setEnabled(!result.storedHash.isEmpty());
+
+                         QObject::connect(openFolder, &QAction::triggered, this,
+                                          [&result]() {
+                                              const QString dir = QFileInfo{result.track.filepath()}.absolutePath();
+                                              QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+                                          });
 
                          QObject::connect(copyComputed, &QAction::triggered, this,
                                           [&result]() {
