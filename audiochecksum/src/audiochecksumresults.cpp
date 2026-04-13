@@ -67,22 +67,10 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     m_resultsView->sortByColumn(static_cast<int>(AudioChecksumResultsModel::Column::Filename),
                                 Qt::AscendingOrder);
 
-    // Column sizing: filename stretches, the rest fit content
-    m_resultsView->horizontalHeader()->setSectionResizeMode(
-        static_cast<int>(AudioChecksumResultsModel::Column::Filename),
-        QHeaderView::Stretch);
-    m_resultsView->horizontalHeader()->setSectionResizeMode(
-        static_cast<int>(AudioChecksumResultsModel::Column::Algorithm),
-        QHeaderView::ResizeToContents);
-    m_resultsView->horizontalHeader()->setSectionResizeMode(
-        static_cast<int>(AudioChecksumResultsModel::Column::ComputedHash),
-        QHeaderView::ResizeToContents);
-    m_resultsView->horizontalHeader()->setSectionResizeMode(
-        static_cast<int>(AudioChecksumResultsModel::Column::StoredHash),
-        QHeaderView::ResizeToContents);
-    m_resultsView->horizontalHeader()->setSectionResizeMode(
-        static_cast<int>(AudioChecksumResultsModel::Column::Status),
-        QHeaderView::ResizeToContents);
+    // All columns are interactive so the user can drag to resize them;
+    // resizeColumnsToContents() sets sensible initial widths.
+    m_resultsView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    m_resultsView->resizeColumnsToContents();
 
     // Show "Save to Tags" button only when there are results worth tagging
     const QList<ChecksumResult> toSave = m_resultsModel->resultsToSave();
