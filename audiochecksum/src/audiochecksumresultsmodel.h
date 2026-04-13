@@ -51,6 +51,9 @@ public:
 
     void sort(int column, Qt::SortOrder order) override;
 
+    /*! Replaces the entire result set and resets the view. */
+    void setResults(QList<ChecksumResult> results);
+
     /*!
      * Returns those results whose status warrants writing a tag:
      *   - New      → write computed hash for the first time

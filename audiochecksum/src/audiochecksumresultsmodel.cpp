@@ -172,6 +172,13 @@ const QList<ChecksumResult>& AudioChecksumResultsModel::results() const
     return m_results;
 }
 
+void AudioChecksumResultsModel::setResults(QList<ChecksumResult> results)
+{
+    beginResetModel();
+    m_results = std::move(results);
+    endResetModel();
+}
+
 } // namespace Fooyin::AudioChecksum
 
 #include "moc_audiochecksumresultsmodel.cpp"

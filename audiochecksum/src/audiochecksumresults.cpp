@@ -20,14 +20,16 @@
 
 #include "audiochecksumdefs.h"
 #include "audiochecksumresultsmodel.h"
+#include "audiochecksumscanner.h"
 
 #include <core/library/musiclibrary.h>
 #include <utils/stringutils.h>
 
 #include <QApplication>
 #include <QClipboard>
-#include <QDialogButtonBox>
+#include <QCloseEvent>
 #include <QGridLayout>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
@@ -40,18 +42,24 @@ using namespace Qt::StringLiterals;
 namespace Fooyin::AudioChecksum {
 
 AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
-                                           QList<ChecksumResult> results,
-                                           std::chrono::milliseconds timeTaken,
+                                           std::shared_ptr<AudioLoader> audioLoader,
+                                           TrackList tracks,
                                            QWidget* parent)
     : QDialog{parent}
     , m_library{library}
+    , m_audioLoader{std::move(audioLoader)}
+    , m_tracks{std::move(tracks)}
     , m_resultsView{new QTableView(this)}
-    , m_resultsModel{new AudioChecksumResultsModel(std::move(results), this)}
+    , m_resultsModel{new AudioChecksumResultsModel({}, this)}
     , m_proxyModel{new QSortFilterProxyModel(this)}
-    , m_status{new QLabel(tr("Time taken") + ": "_L1 + Utils::msToString(timeTaken, false), this)}
-    , m_buttonBox{new QDialogButtonBox(this)}
+    , m_status{new QLabel(
+          tr("Ready — %1 track(s) selected.").arg(static_cast<int>(m_tracks.size())), this)}
+    , m_calcButton{new QPushButton(tr("&Calculate"), this)}
+    , m_verifyButton{new QPushButton(tr("&Verify"), this)}
+    , m_saveButton{new QPushButton(tr("&Save to Tags"), this)}
+    , m_closeButton{new QPushButton(tr("Close"), this)}
 {
-    setWindowTitle(tr("Audio Checksum Results"));
+    setWindowTitle(tr("Audio Checksum"));
     setModal(false);
 
     m_proxyModel->setSourceModel(m_resultsModel);
@@ -66,50 +74,94 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     m_resultsView->horizontalHeader()->setSortIndicatorShown(true);
     m_resultsView->sortByColumn(static_cast<int>(AudioChecksumResultsModel::Column::Filename),
                                 Qt::AscendingOrder);
-
-    // All columns are interactive so the user can drag to resize them;
-    // resizeColumnsToContents() sets sensible initial widths.
     m_resultsView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    m_resultsView->resizeColumnsToContents();
 
-    // Show "Save to Tags" button only when there are results worth tagging
-    const QList<ChecksumResult> toSave = m_resultsModel->resultsToSave();
-    if(!toSave.isEmpty()) {
-        auto* saveButton = m_buttonBox->addButton(tr("&Save to Tags"),
-                                                  QDialogButtonBox::AcceptRole);
-        QObject::connect(saveButton, &QPushButton::clicked, this,
-                         &AudioChecksumResults::accept);
-        m_buttonBox->addButton(QDialogButtonBox::Cancel);
-        QObject::connect(m_buttonBox, &QDialogButtonBox::rejected,
-                         this, &QDialog::reject);
-    }
-    else {
-        m_buttonBox->addButton(QDialogButtonBox::Close);
-        QObject::connect(m_buttonBox, &QDialogButtonBox::rejected,
-                         this, &QDialog::reject);
-        // "Close" sends rejected
-        QObject::connect(m_buttonBox, &QDialogButtonBox::accepted,
-                         this, &QDialog::accept);
-    }
+    m_saveButton->setEnabled(false);
+    m_closeButton->setDefault(true);
+
+    QObject::connect(m_calcButton, &QPushButton::clicked, this,
+                     [this]() { startScan(false); });
+    QObject::connect(m_verifyButton, &QPushButton::clicked, this,
+                     [this]() { startScan(true); });
+    QObject::connect(m_saveButton, &QPushButton::clicked, this,
+                     &AudioChecksumResults::saveToTags);
+    QObject::connect(m_closeButton, &QPushButton::clicked, this,
+                     &QDialog::close);
 
     setupContextMenu();
 
+    auto* buttonLayout = new QHBoxLayout;
+    buttonLayout->addWidget(m_calcButton);
+    buttonLayout->addWidget(m_verifyButton);
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(m_saveButton);
+    buttonLayout->addWidget(m_closeButton);
+
     auto* layout = new QGridLayout(this);
-    layout->addWidget(m_resultsView, 0, 0, 1, 2);
+    layout->addWidget(m_resultsView, 0, 0);
     layout->addWidget(m_status, 1, 0);
-    layout->addWidget(m_buttonBox, 1, 1);
-    layout->setColumnStretch(0, 1);
+    layout->addLayout(buttonLayout, 2, 0);
+    layout->setRowStretch(0, 1);
 }
 
-void AudioChecksumResults::accept()
+void AudioChecksumResults::startScan(bool /*verifyMode*/)
+{
+    if(m_scanning)
+        return;
+
+    m_scanning = true;
+    m_calcButton->setEnabled(false);
+    m_verifyButton->setEnabled(false);
+    m_saveButton->setEnabled(false);
+    m_status->setText(tr("Scanning…"));
+
+    m_resultsModel->setResults({});
+    m_scanStart = std::chrono::steady_clock::now();
+
+    m_scanner = new AudioChecksumScanner(m_audioLoader, this);
+
+    const int total    = static_cast<int>(m_tracks.size());
+    int progCount{0};
+
+    QObject::connect(m_scanner, &AudioChecksumScanner::scanningTrack, this,
+                     [this, total, progCount](const QString& filepath) mutable {
+                         ++progCount;
+                         m_status->setText(
+                             tr("Scanning %1 / %2").arg(progCount).arg(total)
+                             + ":\n"_L1 + filepath);
+                     });
+
+    QObject::connect(m_scanner, &AudioChecksumScanner::scanFinished, this,
+                     &AudioChecksumResults::onScanFinished);
+
+    m_scanner->scanTracks(m_tracks);
+}
+
+void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& results)
+{
+    m_scanning = false;
+    m_scanner->close();
+    m_scanner = nullptr;
+
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - m_scanStart);
+
+    m_resultsModel->setResults(results);
+    m_resultsView->resizeColumnsToContents();
+
+    m_status->setText(tr("Time taken") + ": "_L1 + Utils::msToString(elapsed, false));
+
+    m_calcButton->setEnabled(true);
+    m_verifyButton->setEnabled(true);
+    updateSaveButton();
+}
+
+void AudioChecksumResults::saveToTags()
 {
     QList<ChecksumResult> toSave = m_resultsModel->resultsToSave();
-    if(toSave.isEmpty()) {
-        QDialog::accept();
+    if(toSave.isEmpty())
         return;
-    }
 
-    // Apply computed hash to the AUDIOCHECKSUM tag before writing
     TrackList tracks;
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
@@ -118,21 +170,31 @@ void AudioChecksumResults::accept()
     }
 
     m_status->setText(tr("Writing to file tags…"));
-    // Disable the accept-role button while writing
-    const auto buttons = m_buttonBox->buttons();
-    for(auto* btn : buttons) {
-        if(m_buttonBox->buttonRole(btn) == QDialogButtonBox::AcceptRole)
-            btn->setEnabled(false);
-    }
+    m_saveButton->setEnabled(false);
 
     QObject::connect(m_library, &MusicLibrary::tracksMetadataChanged,
-                     this, [this]() { QDialog::accept(); },
+                     this, [this]() {
+                         m_status->setText(tr("Tags saved."));
+                         updateSaveButton();
+                     },
                      Qt::SingleShotConnection);
 
-    const auto request = m_library->writeTrackMetadata(tracks);
-    QObject::connect(m_buttonBox, &QDialogButtonBox::rejected,
-                     this, [request]() { request.cancel(); },
-                     Qt::SingleShotConnection);
+    m_library->writeTrackMetadata(tracks);
+}
+
+void AudioChecksumResults::updateSaveButton()
+{
+    m_saveButton->setEnabled(!m_resultsModel->resultsToSave().isEmpty());
+}
+
+void AudioChecksumResults::closeEvent(QCloseEvent* event)
+{
+    if(m_scanning && m_scanner) {
+        m_scanner->close();
+        m_scanner = nullptr;
+        m_scanning = false;
+    }
+    QDialog::closeEvent(event);
 }
 
 void AudioChecksumResults::setupContextMenu()

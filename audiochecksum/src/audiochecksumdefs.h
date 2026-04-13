@@ -27,7 +27,4 @@ constexpr auto TagFieldName = "AUDIOCHECKSUM_MD5";
 constexpr auto SettingTagField     = "AudioChecksum/TagField";
 constexpr auto SettingSkipExisting = "AudioChecksum/SkipExisting";
 
-// Context menu ID
-constexpr auto MenuAudioChecksum = "AudioChecksum.Menu";
-
 } // namespace Fooyin::AudioChecksum

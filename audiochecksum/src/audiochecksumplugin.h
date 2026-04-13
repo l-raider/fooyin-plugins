@@ -49,15 +49,7 @@ public:
     void initialise(const GuiPluginContext& context) override;
 
 private:
-    enum class ScanMode
-    {
-        CalculateOnly,
-        CalculateAndSave,
-        VerifyOnly
-    };
-
     void setupContextMenu();
-    void runScan(ScanMode mode);
 
     std::shared_ptr<AudioLoader> m_audioLoader;
     MusicLibrary* m_library{nullptr};

@@ -20,21 +20,18 @@
 
 #include "audiochecksumdefs.h"
 #include "audiochecksumresults.h"
-#include "audiochecksumscanner.h"
 
 #include <core/library/musiclibrary.h>
 #include <core/plugins/coreplugincontext.h>
 #include <gui/guiconstants.h>
 #include <gui/plugins/guiplugincontext.h>
 #include <gui/trackselectioncontroller.h>
-#include <gui/widgets/elapsedprogressdialog.h>
 #include <utils/actions/actioncontainer.h>
 #include <utils/actions/actionmanager.h>
 #include <utils/utils.h>
 
 #include <QAction>
 #include <QMainWindow>
-#include <QMenu>
 
 using namespace Qt::StringLiterals;
 
@@ -59,122 +56,29 @@ void AudioChecksumPlugin::setupContextMenu()
     auto* selectionMenu =
         m_actionManager->actionContainer(Constants::Menus::Context::TrackSelection);
 
-    auto* checksumMenu = m_actionManager->createMenu(MenuAudioChecksum);
-    checksumMenu->menu()->setTitle(tr("Audio Checksum"));
-    selectionMenu->addMenu(checksumMenu);
+    auto* action = new QAction(tr("Audio Checksum…"), Utils::getMainWindow());
+    action->setStatusTip(tr("Calculate or verify MD5 checksums for selected tracks"));
+    selectionMenu->menu()->addAction(action);
 
-    auto* window = Utils::getMainWindow();
-
-    auto* calcAction     = new QAction(tr("Calculate Checksums"), window);
-    auto* calcSaveAction = new QAction(tr("Calculate and Save to Tags"), window);
-    auto* verifyAction   = new QAction(tr("Verify Checksums"), window);
-
-    calcAction->setStatusTip(
-        tr("Compute an MD5 checksum from the decoded audio of each selected file"));
-    calcSaveAction->setStatusTip(
-        tr("Compute a checksum and write it to the %1 tag field").arg(
-            QString::fromLatin1(TagFieldName)));
-    verifyAction->setStatusTip(
-        tr("Compare the computed checksum against the value stored in the %1 tag").arg(
-            QString::fromLatin1(TagFieldName)));
-
-    checksumMenu->menu()->addAction(calcAction);
-    checksumMenu->menu()->addAction(calcSaveAction);
-    checksumMenu->menu()->addSeparator();
-    checksumMenu->menu()->addAction(verifyAction);
-
-    QObject::connect(calcAction, &QAction::triggered, this,
-                     [this] { runScan(ScanMode::CalculateOnly); });
-    QObject::connect(calcSaveAction, &QAction::triggered, this,
-                     [this] { runScan(ScanMode::CalculateAndSave); });
-    QObject::connect(verifyAction, &QAction::triggered, this,
-                     [this] { runScan(ScanMode::VerifyOnly); });
-
-    // Keep menu state in sync with selection
-    const auto updateActions = [this, checksumMenu, verifyAction]() {
-        const TrackList tracks = m_selectionController->selectedTracks();
-        const bool hasSelection = !tracks.empty();
-
-        checksumMenu->menu()->setEnabled(hasSelection);
-
-        // Enable verify if any selected track has the tag stored, or is a FLAC
-        // file (which always carries an embedded STREAMINFO MD5 to verify against).
-        const bool anyVerifiable = std::any_of(
-            tracks.cbegin(), tracks.cend(), [](const Track& t) {
-                if(!t.extraTag(TagFieldName).isEmpty())
-                    return true;
-                const QString codec = t.codec().toLower();
-                return codec == u"flac"
-                       || t.filepath().endsWith(u".flac", Qt::CaseInsensitive);
-            });
-        verifyAction->setEnabled(hasSelection && anyVerifiable);
+    const auto updateAction = [this, action]() {
+        action->setEnabled(!m_selectionController->selectedTracks().empty());
     };
+
+    QObject::connect(action, &QAction::triggered, this, [this]() {
+        const TrackList tracks = m_selectionController->selectedTracks();
+        if(tracks.empty())
+            return;
+        auto* dlg = new AudioChecksumResults(m_library, m_audioLoader, tracks,
+                                             Utils::getMainWindow());
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+    });
 
     QObject::connect(m_selectionController,
                      &TrackSelectionController::selectionChanged,
-                     this, updateActions);
+                     this, updateAction);
 
-    updateActions();
-}
-
-void AudioChecksumPlugin::runScan(ScanMode mode)
-{
-    const TrackList tracksToScan = m_selectionController->selectedTracks();
-    if(tracksToScan.empty())
-        return;
-
-    const auto total = static_cast<int>(tracksToScan.size());
-
-    auto* progress = new ElapsedProgressDialog(
-        tr("Scanning tracks…"), tr("Abort"), 0, total + 1,
-        Utils::getMainWindow());
-    progress->setAttribute(Qt::WA_DeleteOnClose);
-    progress->setWindowTitle(tr("Audio Checksum Scan"));
-    progress->setShowRemaining(true);
-    progress->setValue(0);
-
-    auto* scanner = new AudioChecksumScanner(m_audioLoader, this);
-
-    QObject::connect(
-        scanner, &AudioChecksumScanner::scanFinished, this,
-        [this, scanner, progress, mode](const QList<ChecksumResult>& results) {
-            const auto finishTime = progress->elapsedTime();
-            scanner->close();
-            progress->deleteLater();
-
-            // For VerifyOnly, filter results to those that were actually verified
-            QList<ChecksumResult> displayResults = results;
-
-            if(mode == ScanMode::CalculateAndSave) {
-                // Show results; the dialog will have "Save to Tags" pre-selected.
-                // The user can review before confirming.
-                auto* dlg = new AudioChecksumResults(m_library, std::move(displayResults),
-                                                     finishTime, Utils::getMainWindow());
-                dlg->setAttribute(Qt::WA_DeleteOnClose);
-                dlg->show();
-            }
-            else {
-                auto* dlg = new AudioChecksumResults(m_library, std::move(displayResults),
-                                                     finishTime, Utils::getMainWindow());
-                dlg->setAttribute(Qt::WA_DeleteOnClose);
-                dlg->show();
-            }
-        });
-
-    QObject::connect(
-        scanner, &AudioChecksumScanner::scanningTrack, this,
-        [scanner, progress](const QString& filepath) {
-            if(progress->wasCancelled()) {
-                scanner->close();
-                progress->deleteLater();
-                return;
-            }
-            progress->setValue(progress->value() + 1);
-            progress->setText(tr("Current file") + ":\n"_L1 + filepath);
-        });
-
-    scanner->scanTracks(tracksToScan);
-    progress->startTimer();
+    updateAction();
 }
 
 } // namespace Fooyin::AudioChecksum

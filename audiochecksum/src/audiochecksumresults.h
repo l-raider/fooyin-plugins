@@ -20,27 +20,37 @@
 
 #include "audiochecksumresult.h"
 
+#include <core/track.h>
+
 #include <QDialog>
 #include <QList>
 
-class QDialogButtonBox;
+#include <chrono>
+#include <memory>
+
+class QCloseEvent;
 class QLabel;
+class QPushButton;
 class QSortFilterProxyModel;
 class QTableView;
 
 namespace Fooyin {
+class AudioLoader;
 class MusicLibrary;
 } // namespace Fooyin
 
 namespace Fooyin::AudioChecksum {
 
 class AudioChecksumResultsModel;
+class AudioChecksumScanner;
 
 /*!
- * Non-modal dialog showing a sortable table of checksum scan results.
+ * Non-modal dialog for computing and verifying audio checksums.
  *
- * "Save to Tags" writes the computed checksum into the AUDIOCHECKSUM tag
- * for tracks with status New or Mismatch.
+ * Opens with an empty table. The user clicks "Calculate" or "Verify" to run
+ * the scan; results populate the table when the scan completes.
+ * "Save to Tags" is always visible and becomes enabled once there are
+ * New or Mismatch results to write.
  */
 class AudioChecksumResults : public QDialog
 {
@@ -48,25 +58,39 @@ class AudioChecksumResults : public QDialog
 
 public:
     AudioChecksumResults(MusicLibrary* library,
-                         QList<ChecksumResult> results,
-                         std::chrono::milliseconds timeTaken,
+                         std::shared_ptr<AudioLoader> audioLoader,
+                         TrackList tracks,
                          QWidget* parent = nullptr);
-
-    void accept() override;
 
     [[nodiscard]] QSize sizeHint() const override;
     [[nodiscard]] QSize minimumSizeHint() const override;
 
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
 private:
+    void startScan(bool verifyMode);
+    void onScanFinished(const QList<ChecksumResult>& results);
+    void saveToTags();
     void setupContextMenu();
+    void updateSaveButton();
 
     MusicLibrary* m_library;
+    std::shared_ptr<AudioLoader> m_audioLoader;
+    TrackList m_tracks;
+    AudioChecksumScanner* m_scanner{nullptr};
 
     QTableView* m_resultsView;
     AudioChecksumResultsModel* m_resultsModel;
     QSortFilterProxyModel* m_proxyModel;
     QLabel* m_status;
-    QDialogButtonBox* m_buttonBox;
+    QPushButton* m_calcButton;
+    QPushButton* m_verifyButton;
+    QPushButton* m_saveButton;
+    QPushButton* m_closeButton;
+
+    std::chrono::steady_clock::time_point m_scanStart;
+    bool m_scanning{false};
 };
 
 } // namespace Fooyin::AudioChecksum
