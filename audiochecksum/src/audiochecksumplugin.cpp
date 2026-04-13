@@ -33,6 +33,8 @@
 #include <utils/utils.h>
 
 #include <QAction>
+#include <QMainWindow>
+#include <QMenu>
 
 using namespace Qt::StringLiterals;
 
