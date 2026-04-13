@@ -183,6 +183,7 @@ void AudioChecksumResults::saveToTags()
 
     QObject::connect(m_library, &MusicLibrary::tracksMetadataChanged,
                      this, [this]() {
+                         m_resultsModel->markSaved();
                          m_status->setText(tr("Tags saved."));
                          updateSaveButton();
                      },

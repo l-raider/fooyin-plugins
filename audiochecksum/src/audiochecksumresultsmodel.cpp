@@ -181,6 +181,21 @@ const QList<ChecksumResult>& AudioChecksumResultsModel::results() const
     return m_results;
 }
 
+void AudioChecksumResultsModel::markSaved()
+{
+    for(qsizetype i{0}; i < m_results.size(); ++i) {
+        auto& result = m_results[i];
+        if(result.status == ChecksumResult::Status::New
+           || result.status == ChecksumResult::Status::Mismatch) {
+            result.storedHash = result.computedHash;
+            result.status     = ChecksumResult::Status::Match;
+            const QModelIndex first = index(static_cast<int>(i), 0);
+            const QModelIndex last  = index(static_cast<int>(i), columnCount() - 1);
+            emit dataChanged(first, last);
+        }
+    }
+}
+
 void AudioChecksumResultsModel::setResults(QList<ChecksumResult> results)
 {
     beginResetModel();
