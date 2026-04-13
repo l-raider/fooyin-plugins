@@ -97,11 +97,17 @@ void AudioChecksumPlugin::setupContextMenu()
 
         checksumMenu->menu()->setEnabled(hasSelection);
 
-        const bool anyHasTag = std::any_of(
+        // Enable verify if any selected track has the tag stored, or is a FLAC
+        // file (which always carries an embedded STREAMINFO MD5 to verify against).
+        const bool anyVerifiable = std::any_of(
             tracks.cbegin(), tracks.cend(), [](const Track& t) {
-                return !t.extraTag(TagFieldName).isEmpty();
+                if(!t.extraTag(TagFieldName).isEmpty())
+                    return true;
+                const QString codec = t.codec().toLower();
+                return codec == u"flac"
+                       || t.filepath().endsWith(u".flac", Qt::CaseInsensitive);
             });
-        verifyAction->setEnabled(hasSelection && anyHasTag);
+        verifyAction->setEnabled(hasSelection && anyVerifiable);
     };
 
     QObject::connect(m_selectionController,
