@@ -149,6 +149,7 @@ void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& results)
 {
     m_scanning = false;
     m_scanner->close();
+    m_scanner->deleteLater();
     m_scanner = nullptr;
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -199,6 +200,7 @@ void AudioChecksumResults::closeEvent(QCloseEvent* event)
 {
     if(m_scanning && m_scanner) {
         m_scanner->close();
+        m_scanner->deleteLater();
         m_scanner = nullptr;
         m_scanning = false;
     }
