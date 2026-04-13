@@ -101,6 +101,28 @@ cd audiochecksum
 
 ---
 
+## Developer notes
+
+### Audio checksum and sample format packing
+
+The FLAC STREAMINFO MD5 is computed over raw PCM samples packed at their
+**native byte width** in little-endian order (see `format_input_()` in
+[libFLAC/md5.c](https://github.com/xiph/flac/blob/master/src/libFLAC/md5.c)).
+For 24-bit FLAC this means **3 bytes per sample**, tightly packed as
+`[LSB, MID, MSB]` of the 24-bit value.
+
+FFmpeg (used by fooyin's decoder) decodes 24-bit FLAC as `S24In32` — each
+24-bit sample is stored **left-aligned** in a 32-bit word (`value << 8`).
+On a little-endian machine the 4-byte layout is `[0x00, LSB, MID, MSB]`.
+
+To match the FLAC reference, `S24In32` buffers must be repacked to 3
+bytes/sample by **skipping byte 0** (the zero pad) and copying bytes 1–3
+of each 32-bit word. Copying bytes 0–2 instead produces a wrong MD5 even
+though it strips the right number of bytes. Other formats (`S16`, `S32`)
+are already at their native width and need no adjustment.
+
+---
+
 ## Plugin output location
 
 After a successful build the plugin library is at:

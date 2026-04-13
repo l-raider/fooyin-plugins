@@ -29,6 +29,8 @@
 #include <QCryptographicHash>
 #include <QFileInfo>
 
+#include <cstring>
+
 using namespace Qt::StringLiterals;
 
 namespace Fooyin::AudioChecksum {
@@ -104,14 +106,34 @@ ChecksumResult AudioChecksumWorker::computeChecksum(const Track& track) const
 
     QCryptographicHash hash{QCryptographicHash::Md5};
 
+    const SampleFormat sampleFmt = fmt.sampleFormat();
+
     constexpr size_t ChunkBytes = 65536;
     while(mayRun()) {
         AudioBuffer buffer = loaded.decoder->readBuffer(ChunkBytes);
         if(!buffer.isValid() || buffer.byteCount() == 0)
             break;
 
-        hash.addData(QByteArrayView{reinterpret_cast<const char*>(buffer.data()),
-                                    static_cast<qsizetype>(buffer.byteCount())});
+        if(sampleFmt == SampleFormat::S24In32) {
+            // FFmpeg decodes 24-bit FLAC into AV_SAMPLE_FMT_S32 with samples
+            // left-aligned (shifted << 8), so in LE memory each 4-byte word is
+            // [0x00, LSB, MID, MSB]. The FLAC STREAMINFO MD5 is computed over
+            // tightly-packed 3 bytes/sample LE data [LSB, MID, MSB], so we must
+            // skip the low zero byte and copy only bytes [1,2,3] of each word.
+            const auto* src  = reinterpret_cast<const char*>(buffer.data());
+            const int total  = static_cast<int>(buffer.byteCount());
+            const int count  = total / 4;
+            QByteArray packed(count * 3, Qt::Uninitialized);
+            char* dst = packed.data();
+            for(int i = 0; i < count; ++i) {
+                std::memcpy(dst + i * 3, src + i * 4 + 1, 3);
+            }
+            hash.addData(packed);
+        }
+        else {
+            hash.addData(QByteArrayView{reinterpret_cast<const char*>(buffer.data()),
+                                        static_cast<qsizetype>(buffer.byteCount())});
+        }
     }
 
     loaded.decoder->stop();
