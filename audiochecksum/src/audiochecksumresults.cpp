@@ -219,7 +219,7 @@ void AudioChecksumResults::setupContextMenu()
 
                          const QModelIndex srcIndex =
                              m_proxyModel->mapToSource(proxyIndex);
-                         const ChecksumResult& result =
+                         const ChecksumResult result =
                              m_resultsModel->results().at(srcIndex.row());
 
                          QMenu menu{this};
