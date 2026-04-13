@@ -54,12 +54,12 @@ void AudioChecksumPlugin::initialise(const GuiPluginContext& context)
 
 void AudioChecksumPlugin::setupContextMenu()
 {
-    auto* selectionMenu =
-        m_actionManager->actionContainer(Constants::Menus::Context::TrackSelection);
+    auto* utilitiesMenu =
+        m_actionManager->actionContainer(Constants::Menus::Context::Utilities);
 
     auto* action = new QAction(tr("Audio Checksum…"), Utils::getMainWindow());
     action->setStatusTip(tr("Calculate or verify MD5 checksums for selected tracks"));
-    selectionMenu->menu()->addAction(action);
+    utilitiesMenu->menu()->addAction(action);
 
     const auto updateAction = [this, action]() {
         action->setEnabled(!m_selectionController->selectedTracks().empty());

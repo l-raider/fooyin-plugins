@@ -19,6 +19,7 @@
 #include "audiochecksumresultsmodel.h"
 
 #include <QFileInfo>
+#include <QString>
 
 using namespace Qt::StringLiterals;
 
@@ -159,10 +160,18 @@ QList<ChecksumResult> AudioChecksumResultsModel::resultsToSave() const
 {
     QList<ChecksumResult> toSave;
     for(const auto& result : m_results) {
-        if(result.status == ChecksumResult::Status::New
-           || result.status == ChecksumResult::Status::Mismatch) {
-            toSave.append(result);
-        }
+        if(result.status != ChecksumResult::Status::New
+           && result.status != ChecksumResult::Status::Mismatch)
+            continue;
+
+        // FLAC files carry an embedded STREAMINFO MD5 as their authoritative
+        // checksum — we never write a tag for them.
+        const QString codec = result.track.codec().toLower();
+        if(codec == u"flac"
+           || result.track.filepath().endsWith(u".flac", Qt::CaseInsensitive))
+            continue;
+
+        toSave.append(result);
     }
     return toSave;
 }

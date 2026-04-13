@@ -30,6 +30,7 @@
 
 class QCloseEvent;
 class QLabel;
+class QProgressBar;
 class QPushButton;
 class QSortFilterProxyModel;
 class QTableView;
@@ -84,6 +85,7 @@ private:
     AudioChecksumResultsModel* m_resultsModel;
     QSortFilterProxyModel* m_proxyModel;
     QLabel* m_status;
+    QProgressBar* m_progressBar;
     QPushButton* m_calcButton;
     QPushButton* m_verifyButton;
     QPushButton* m_saveButton;

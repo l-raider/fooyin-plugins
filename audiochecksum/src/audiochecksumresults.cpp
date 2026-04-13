@@ -28,11 +28,13 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QFileInfo>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QSortFilterProxyModel>
 #include <QTableView>
@@ -54,6 +56,7 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     , m_proxyModel{new QSortFilterProxyModel(this)}
     , m_status{new QLabel(
           tr("Ready — %1 track(s) selected.").arg(static_cast<int>(m_tracks.size())), this)}
+    , m_progressBar{new QProgressBar(this)}
     , m_calcButton{new QPushButton(tr("&Calculate"), this)}
     , m_verifyButton{new QPushButton(tr("&Verify"), this)}
     , m_saveButton{new QPushButton(tr("&Save to Tags"), this)}
@@ -79,6 +82,11 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     m_saveButton->setEnabled(false);
     m_closeButton->setDefault(true);
 
+    m_progressBar->setRange(0, 1);
+    m_progressBar->setValue(0);
+    m_progressBar->setTextVisible(false);
+    m_progressBar->setVisible(false);
+
     QObject::connect(m_calcButton, &QPushButton::clicked, this,
                      [this]() { startScan(false); });
     QObject::connect(m_verifyButton, &QPushButton::clicked, this,
@@ -99,8 +107,9 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
 
     auto* layout = new QGridLayout(this);
     layout->addWidget(m_resultsView, 0, 0);
-    layout->addWidget(m_status, 1, 0);
-    layout->addLayout(buttonLayout, 2, 0);
+    layout->addWidget(m_progressBar, 1, 0);
+    layout->addWidget(m_status, 2, 0);
+    layout->addLayout(buttonLayout, 3, 0);
     layout->setRowStretch(0, 1);
 }
 
@@ -113,6 +122,11 @@ void AudioChecksumResults::startScan(bool /*verifyMode*/)
     m_calcButton->setEnabled(false);
     m_verifyButton->setEnabled(false);
     m_saveButton->setEnabled(false);
+
+    const int total = static_cast<int>(m_tracks.size());
+    m_progressBar->setRange(0, total);
+    m_progressBar->setValue(0);
+    m_progressBar->setVisible(true);
     m_status->setText(tr("Scanning…"));
 
     m_resultsModel->setResults({});
@@ -120,15 +134,13 @@ void AudioChecksumResults::startScan(bool /*verifyMode*/)
 
     m_scanner = new AudioChecksumScanner(m_audioLoader, this);
 
-    const int total    = static_cast<int>(m_tracks.size());
-    int progCount{0};
-
     QObject::connect(m_scanner, &AudioChecksumScanner::scanningTrack, this,
-                     [this, total, progCount](const QString& filepath) mutable {
-                         ++progCount;
+                     [this, total](const QString& filepath) {
+                         const int done = m_progressBar->value() + 1;
+                         m_progressBar->setValue(done);
                          m_status->setText(
-                             tr("Scanning %1 / %2").arg(progCount).arg(total)
-                             + ":\n"_L1 + filepath);
+                             tr("Scanning %1 / %2: %3").arg(done).arg(total)
+                                 .arg(QFileInfo{filepath}.fileName()));
                      });
 
     QObject::connect(m_scanner, &AudioChecksumScanner::scanFinished, this,
@@ -149,6 +161,7 @@ void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& results)
     m_resultsModel->setResults(results);
     m_resultsView->resizeColumnsToContents();
 
+    m_progressBar->setVisible(false);
     m_status->setText(tr("Time taken") + ": "_L1 + Utils::msToString(elapsed, false));
 
     m_calcButton->setEnabled(true);
