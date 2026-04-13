@@ -1,0 +1,10 @@
+{
+    "Name": "Audio Checksum",
+    "Version": "@PROJECT_VERSION@",
+    "Author": "l-raider",
+    "Copyright": "",
+    "License": ["GPL v3"],
+    "Category": "Tools",
+    "Description": "Compute and verify audio content checksums (MD5) from decoded PCM data. Supports FLAC embedded MD5 extraction.",
+    "Url": "https://github.com/l-raider/fooyin-plugins"
+}

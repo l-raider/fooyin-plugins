@@ -39,3 +39,9 @@
 
 # debug information files
 *.dwo
+
+# fooyin source submodule (tracked via .gitmodules, not committed directly)
+fooyin/
+
+# Plugin build directories
+**/build/

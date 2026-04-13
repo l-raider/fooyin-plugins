@@ -1,0 +1,3 @@
+[submodule "fooyin"]
+	path = fooyin
+	url = https://github.com/fooyin/fooyin.git
