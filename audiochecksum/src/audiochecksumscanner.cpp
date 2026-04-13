@@ -32,6 +32,8 @@ AudioChecksumScanner::AudioChecksumScanner(std::shared_ptr<AudioLoader> audioLoa
 
     QObject::connect(m_worker.get(), &AudioChecksumWorker::scanningTrack,
                      this, &AudioChecksumScanner::scanningTrack);
+    QObject::connect(m_worker.get(), &AudioChecksumWorker::trackScanned,
+                     this, &AudioChecksumScanner::trackScanned);
     QObject::connect(m_worker.get(), &AudioChecksumWorker::scanFinished,
                      this, &AudioChecksumScanner::scanFinished);
 }

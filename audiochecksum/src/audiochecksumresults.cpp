@@ -139,13 +139,19 @@ void AudioChecksumResults::startScan()
                                  .arg(QFileInfo{filepath}.fileName()));
                      });
 
+    QObject::connect(m_scanner, &AudioChecksumScanner::trackScanned, this,
+                     [this](const ChecksumResult& result) {
+                         m_resultsModel->appendResult(result);
+                         m_resultsView->resizeColumnsToContents();
+                     });
+
     QObject::connect(m_scanner, &AudioChecksumScanner::scanFinished, this,
                      &AudioChecksumResults::onScanFinished);
 
     m_scanner->scanTracks(m_tracks);
 }
 
-void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& results)
+void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& /*results*/)
 {
     m_scanning = false;
     m_scanner->close();
@@ -155,7 +161,6 @@ void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& results)
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - m_scanStart);
 
-    m_resultsModel->setResults(results);
     m_resultsView->resizeColumnsToContents();
 
     m_progressBar->setVisible(false);

@@ -54,6 +54,9 @@ public:
     /*! Replaces the entire result set and resets the view. */
     void setResults(QList<ChecksumResult> results);
 
+    /*! Appends a single result incrementally during scanning. */
+    void appendResult(const ChecksumResult& result);
+
     /*!
      * Returns those results whose status warrants writing a tag:
      *   - New      → write computed hash for the first time

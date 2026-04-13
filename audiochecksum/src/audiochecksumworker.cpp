@@ -52,7 +52,9 @@ void AudioChecksumWorker::scanTracks(const TrackList& tracks)
 
         emit scanningTrack(track.filepath());
 
-        results.append(computeChecksum(track));
+        const ChecksumResult result = computeChecksum(track);
+        emit trackScanned(result);
+        results.append(result);
     }
 
     setState(Idle);

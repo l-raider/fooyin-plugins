@@ -56,6 +56,7 @@ public:
 
 signals:
     void scanningTrack(const QString& filepath);
+    void trackScanned(const Fooyin::AudioChecksum::ChecksumResult& result);
     void scanFinished(const QList<Fooyin::AudioChecksum::ChecksumResult>& results);
 
 private:

@@ -203,6 +203,14 @@ void AudioChecksumResultsModel::setResults(QList<ChecksumResult> results)
     endResetModel();
 }
 
+void AudioChecksumResultsModel::appendResult(const ChecksumResult& result)
+{
+    const int row = static_cast<int>(m_results.size());
+    beginInsertRows(QModelIndex{}, row, row);
+    m_results.append(result);
+    endInsertRows();
+}
+
 } // namespace Fooyin::AudioChecksum
 
 #include "moc_audiochecksumresultsmodel.cpp"
