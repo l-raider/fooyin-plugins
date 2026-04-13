@@ -15,6 +15,7 @@
 #   ./build.sh                        # auto-detects fooyin install prefix
 #   ./build.sh --prefix /usr/local    # explicit fooyin install prefix
 #   ./build.sh --install              # also install plugin after building
+#   ./build.sh --install-flatpak      # install into the Flatpak user plugin dir
 #   ./build.sh --debug                # Debug build instead of Release
 
 set -euo pipefail
@@ -25,6 +26,7 @@ BUILD_DIR="${SCRIPT_DIR}/build"
 BUILD_TYPE="Release"
 FOOYIN_PREFIX=""
 DO_INSTALL=false
+DO_INSTALL_FLATPAK=false
 # Build directory used when building fooyin from the submodule
 FOOYIN_SUBMODULE_BUILD="${REPO_ROOT}/fooyin/build"
 
@@ -37,6 +39,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --install)
             DO_INSTALL=true
+            shift
+            ;;
+        --install-flatpak)
+            DO_INSTALL_FLATPAK=true
             shift
             ;;
         --debug)
@@ -122,7 +128,21 @@ if [[ "${DO_INSTALL}" == true ]]; then
     echo "Done."
 fi
 
+if [[ "${DO_INSTALL_FLATPAK}" == true ]]; then
+    FLATPAK_APP_ID="org.fooyin.fooyin"
+    FLATPAK_PLUGIN_DIR="${HOME}/.var/app/${FLATPAK_APP_ID}/.local/lib/fooyin/plugins"
+    echo ""
+    echo "Installing plugin into Flatpak sandbox..."
+    mkdir -p "${FLATPAK_PLUGIN_DIR}"
+    find "${BUILD_DIR}" -maxdepth 2 \( -name "*.so" -o -name "*.dylib" -o -name "*.dll" \) \
+        | while read -r so; do
+            cp -v "${so}" "${FLATPAK_PLUGIN_DIR}/"
+        done
+    echo "Installed to: ${FLATPAK_PLUGIN_DIR}"
+fi
+
 echo ""
 echo "To load in fooyin, copy the .so to your plugin directory:"
-echo "  ~/.local/lib/fooyin/plugins/   (user install)"
-echo "  /usr/local/lib/fooyin/plugins/ (system install)"
+echo "  ~/.local/lib/fooyin/plugins/                                           (user install)"
+echo "  ~/.var/app/org.fooyin.fooyin/.local/lib/fooyin/plugins/               (Flatpak install)"
+echo "  /usr/local/lib/fooyin/plugins/                                         (system install)"
