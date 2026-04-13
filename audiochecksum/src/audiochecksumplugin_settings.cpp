@@ -50,7 +50,6 @@ AudioChecksumSettingsDialog::AudioChecksumSettingsDialog(QWidget* parent)
                      this, &AudioChecksumSettingsDialog::reject);
 
     auto* layout = new QGridLayout(this);
-    layout->setSizeConstraint(QLayout::SetFixedSize);
 
     int row{0};
     layout->addWidget(tagLabel,   row, 0);
