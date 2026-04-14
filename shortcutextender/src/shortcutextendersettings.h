@@ -19,10 +19,13 @@
 
 #pragma once
 
+#include "shortcutextenderdefs.h"
+
 #include <QDialog>
 
 class QCheckBox;
 class QRadioButton;
+class QTableWidget;
 
 namespace Fooyin {
 class SettingsManager;
@@ -41,12 +44,17 @@ public:
 private:
     void load();
     void reset();
+    void applyPresetConfigs();
 
     SettingsManager* m_settings;
 
     QCheckBox*    m_confirmDelete;
     QRadioButton* m_trashMode;
     QRadioButton* m_permanentMode;
+
+    QTableWidget* m_presetTable;
+    // Preset names in row order (for reading combo values back)
+    QStringList m_presetNames;
 };
 
 } // namespace ShortcutExtender
