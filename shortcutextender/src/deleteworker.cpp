@@ -204,7 +204,6 @@ void DeleteWorker::deleteFiles()
     }
 
     if(!deleted.empty()) {
-        qCInfo(SHORTCUTEXT) << "Removed" << deleted.size() << "track(s) from library";
         m_library->deleteTracks(deleted);
     }
     else {
