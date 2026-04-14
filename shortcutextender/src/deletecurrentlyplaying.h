@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QAction>
 #include <QObject>
 
 namespace Fooyin {
