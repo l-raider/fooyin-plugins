@@ -125,7 +125,8 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
 
     // Attempt a fast rename (works only when source and trash are on the same filesystem).
     if(QFile::rename(filepath, trashFilePath)) {
-        qCDebug(SHORTCUTEXT) << "Trashed (rename):" << filepath << "->" << trashFilePath;
+        qCInfo(SHORTCUTEXT) << "Trashed:" << filepath;
+        qCDebug(SHORTCUTEXT) << "  ->" << trashFilePath;
         return true;
     }
 
@@ -134,7 +135,7 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
     qCDebug(SHORTCUTEXT) << "Same-filesystem rename failed; falling back to QFile::moveToTrash for:" << filepath;
 
     if(QFile::moveToTrash(filepath)) {
-        qCDebug(SHORTCUTEXT) << "Trashed (QFile::moveToTrash):" << filepath;
+        qCInfo(SHORTCUTEXT) << "Trashed:" << filepath;
         return true;
     }
 
@@ -172,7 +173,7 @@ void DeleteWorker::deleteFiles()
         else {
             ok = QFile::remove(filepath);
             if(ok) {
-                qCDebug(SHORTCUTEXT) << "Permanently deleted:" << filepath;
+                qCInfo(SHORTCUTEXT) << "Permanently deleted:" << filepath;
             }
             else {
                 qCCritical(SHORTCUTEXT) << "Failed to permanently delete:" << filepath;
@@ -187,7 +188,7 @@ void DeleteWorker::deleteFiles()
     }
 
     if(!deleted.empty()) {
-        qCDebug(SHORTCUTEXT) << "Removing" << deleted.size() << "track(s) from library";
+        qCInfo(SHORTCUTEXT) << "Removed" << deleted.size() << "track(s) from library";
         m_library->deleteTracks(deleted);
     }
     else {
