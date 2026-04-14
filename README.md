@@ -10,19 +10,16 @@ See [BUILD.md](BUILD.md) for build and installation instructions.
 
 ### AudioChecksum
 
-Verifies the audio data in your music files hasn't been corrupted or altered. Right-click any tracks and choose **Utilities → Audio Checksum…** to scan them. Results show a clear pass/fail for each track. Configurable via **Settings → Plugins → AudioChecksum**.
+MD5 checksum scanner for selected tracks, accessible via **right-click → Utilities → Audio Checksum…**. FLAC files are checked against the embedded STREAMINFO MD5. Results are shown in a sortable pass/fail table. Thread count is configurable under **Settings → Plugins → AudioChecksum**.
 
 ---
 
 ### ShortcutExtender
 
-Adds extra actions you can bind to keyboard shortcuts in **Settings → Shortcuts**.
+Adds bindable actions under **Settings → Shortcuts → Shortcut Extender**.
 
-**Delete Currently Playing**
+**Delete Currently Playing** — deletes the current track's file (trash or permanent), advancing playback first so the file handle is released. Optional confirmation dialog with a "don't ask again" option. Configure trash vs. permanent under **Settings → Plugins → Shortcut Extender**.
 
-Deletes the track you're currently listening to with a single keypress. Fooyin automatically skips to the next track first. You can choose between moving the file to the trash or deleting it permanently, and optionally turn off the confirmation prompt once you're comfortable with it. Configure in **Settings → Plugins → Shortcut Extender**.
+**FileOps Preset Shortcuts** — exposes each FileOps preset as a bindable shortcut. Per-preset options: track source (selection or now playing) and execution mode (confirm dialog or immediate). Configure under **Settings → Plugins → Shortcut Extender**.
 
-**FileOps Preset Shortcuts**
-
-If you use the FileOps plugin to copy, move, or rename files, this lets you trigger any of your saved FileOps presets from a keyboard shortcut. For each preset you can choose whether it acts on your currently selected tracks or the track that's playing, and whether to show a preview of what will happen before it runs. Configure in **Settings → Plugins → Shortcut Extender**.
 
