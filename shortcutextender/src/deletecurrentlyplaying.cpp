@@ -47,9 +47,9 @@ DeleteCurrentlyPlaying::DeleteCurrentlyPlaying(ActionManager* actionManager, Pla
     , m_library{library}
     , m_settings{settings}
 {
-    auto* action = new QAction(tr("Delete Currently Playing File"), this);
+    auto* action = new QAction(tr("Delete currently playing File"), this);
     auto* cmd    = m_actionManager->registerAction(action, "ShortcutExtender.DeleteCurrentlyPlaying");
-    cmd->setCategories({tr("Edit")});
+    cmd->setCategories({tr("Shortcut Extender")});
     Q_UNUSED(cmd)
 
     QObject::connect(m_playerController, &PlayerController::currentTrackChanged, action,
