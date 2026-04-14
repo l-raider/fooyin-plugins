@@ -77,7 +77,10 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                 break;
             }
             case FileOpsOperation::Remove: {
-                if(!QDir{item.source}.rmdir(item.source)) {
+                // QDir{}.rmdir() treats item.source as an absolute (or cwd-relative)
+                // path. QDir{item.source}.rmdir(item.source) would instead resolve
+                // item.source relative to itself, producing item.source/item.source.
+                if(!QDir{}.rmdir(item.source)) {
                     qCWarning(FILEOPS_SC) << "Failed to remove directory" << item.source;
                     ++failed;
                 }
