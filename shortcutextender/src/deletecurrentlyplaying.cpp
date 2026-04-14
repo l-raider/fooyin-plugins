@@ -42,13 +42,12 @@ namespace Fooyin::ShortcutExtender {
 DeleteCurrentlyPlaying::DeleteCurrentlyPlaying(ActionManager* actionManager, PlayerController* playerController,
                                                MusicLibrary* library, SettingsManager* settings, QObject* parent)
     : QObject{parent}
-    , m_actionManager{actionManager}
     , m_playerController{playerController}
     , m_library{library}
     , m_settings{settings}
 {
     auto* action = new QAction(tr("Delete currently playing File"), this);
-    auto* cmd    = m_actionManager->registerAction(action, "ShortcutExtender.DeleteCurrentlyPlaying");
+    auto* cmd    = actionManager->registerAction(action, "ShortcutExtender.DeleteCurrentlyPlaying");
     cmd->setCategories({tr("Shortcut Extender")});
     Q_UNUSED(cmd)
 

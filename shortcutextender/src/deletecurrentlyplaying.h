@@ -50,7 +50,6 @@ private:
     void onTriggered();
     void updateActionState();
 
-    ActionManager*    m_actionManager;
     PlayerController* m_playerController;
     MusicLibrary*     m_library;
     SettingsManager*  m_settings;
