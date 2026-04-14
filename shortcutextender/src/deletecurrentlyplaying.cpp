@@ -100,7 +100,10 @@ void DeleteCurrentlyPlaying::onTriggered()
 
     const TrackList tracks{playing};
 
-    const auto runDelete = [this, tracks]() {
+    const auto mode = static_cast<DeleteMode>(
+        m_settings->fileValue(Settings::DeleteMode, static_cast<int>(DeleteMode::Trash)).toInt());
+
+    const auto runDelete = [this, tracks, mode]() {
         const QFileInfo fileInfo{tracks.front().filepath()};
         const QString dirPath = fileInfo.dir().path();
 
@@ -109,9 +112,6 @@ void DeleteCurrentlyPlaying::onTriggered()
                                  tr("No write permission to:\n%1").arg(dirPath));
             return;
         }
-
-        const auto mode = static_cast<DeleteMode>(
-            m_settings->fileValue(Settings::DeleteMode, static_cast<int>(DeleteMode::Trash)).toInt());
 
         // When trashing, verify the trash directories are writable before
         // advancing playback — the source dir being writable is not enough.
@@ -157,7 +157,7 @@ void DeleteCurrentlyPlaying::onTriggered()
 
     const bool confirm = m_settings->fileValue(Settings::ConfirmDelete, true).toBool();
     if(confirm) {
-        auto* dialog = new DeleteDialog(tracks, m_settings, Utils::getMainWindow());
+        auto* dialog = new DeleteDialog(tracks, mode, m_settings, Utils::getMainWindow());
         dialog->setAttribute(Qt::WA_DeleteOnClose);
         QObject::connect(dialog, &QDialog::accepted, dialog, [runDelete]() { runDelete(); });
         dialog->open();

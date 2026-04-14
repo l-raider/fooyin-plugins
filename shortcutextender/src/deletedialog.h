@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include "shortcutextenderdefs.h"
+
 #include <core/track.h>
 
 #include <QDialog>
@@ -33,7 +35,7 @@ class DeleteDialog : public QDialog
     Q_OBJECT
 
 public:
-    DeleteDialog(const TrackList& tracks, SettingsManager* settings, QWidget* parent = nullptr);
+    DeleteDialog(const TrackList& tracks, DeleteMode mode, SettingsManager* settings, QWidget* parent = nullptr);
 };
 
 } // namespace ShortcutExtender

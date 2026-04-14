@@ -31,17 +31,20 @@
 
 namespace Fooyin::ShortcutExtender {
 
-DeleteDialog::DeleteDialog(const TrackList& tracks, SettingsManager* settings, QWidget* parent)
+DeleteDialog::DeleteDialog(const TrackList& tracks, DeleteMode mode, SettingsManager* settings, QWidget* parent)
     : QDialog{parent}
 {
-    setWindowTitle(tr("Delete File"));
+    const bool trashing = (mode == DeleteMode::Trash);
+
+    setWindowTitle(trashing ? tr("Move to Trash") : tr("Delete File"));
     setModal(true);
 
+    const QString action = trashing ? tr("move to trash") : tr("permanently delete");
     const QString message
         = tracks.size() == 1
-              ? tr("Are you sure you want to delete \"%1\"?\n%2")
-                    .arg(tracks.front().effectiveTitle(), tracks.front().filepath())
-              : tr("Are you sure you want to delete %1 tracks?").arg(tracks.size());
+              ? tr("Are you sure you want to %1 \"%2\"?\n%3")
+                    .arg(action, tracks.front().effectiveTitle(), tracks.front().filepath())
+              : tr("Are you sure you want to %1 %2 tracks?").arg(action).arg(tracks.size());
 
     auto* label = new QLabel(message, this);
     label->setWordWrap(true);
@@ -49,7 +52,8 @@ DeleteDialog::DeleteDialog(const TrackList& tracks, SettingsManager* settings, Q
     auto* dontAsk = new QCheckBox(tr("Do not ask again"), this);
 
     auto* buttons      = new QDialogButtonBox(this);
-    auto* deleteButton = buttons->addButton(tr("&Delete"), QDialogButtonBox::DestructiveRole);
+    const QString buttonLabel = trashing ? tr("&Move to Trash") : tr("&Delete");
+    auto* deleteButton = buttons->addButton(buttonLabel, QDialogButtonBox::DestructiveRole);
     auto* cancelButton = buttons->addButton(tr("&Cancel"), QDialogButtonBox::RejectRole);
     cancelButton->setDefault(true);
 
