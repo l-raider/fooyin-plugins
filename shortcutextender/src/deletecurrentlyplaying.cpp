@@ -31,11 +31,24 @@
 #include <utils/utils.h>
 
 #include <QAction>
+#include <QDir>
+#include <QFileInfo>
 #include <QMainWindow>
 #include <QMessageBox>
+#include <QStandardPaths>
 #include <QThread>
 
 using namespace Qt::StringLiterals;
+
+namespace {
+QString xdgDataHome()
+{
+    if(qEnvironmentVariableIsSet("FLATPAK_ID")) {
+        return QDir::homePath() + u"/.local/share"_s;
+    }
+    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+}
+} // namespace
 
 namespace Fooyin::ShortcutExtender {
 
@@ -88,6 +101,35 @@ void DeleteCurrentlyPlaying::onTriggered()
     const TrackList tracks{playing};
 
     const auto runDelete = [this, tracks]() {
+        const QFileInfo fileInfo{tracks.front().filepath()};
+        const QString dirPath = fileInfo.dir().path();
+
+        if(!fileInfo.dir().exists() || !QFileInfo(dirPath).isWritable()) {
+            QMessageBox::warning(Utils::getMainWindow(), tr("Delete Failed"),
+                                 tr("No write permission to:\n%1").arg(dirPath));
+            return;
+        }
+
+        const auto mode = static_cast<DeleteMode>(
+            m_settings->fileValue(Settings::DeleteMode, static_cast<int>(DeleteMode::Trash)).toInt());
+
+        // When trashing, verify the trash directories are writable before
+        // advancing playback — the source dir being writable is not enough.
+        if(mode == DeleteMode::Trash) {
+            const QString dataHome  = xdgDataHome();
+            const QString trashFiles = dataHome + u"/Trash/files"_s;
+            const QString trashInfo  = dataHome + u"/Trash/info"_s;
+
+            if(!QFileInfo(trashFiles).isWritable() || !QFileInfo(trashInfo).isWritable()) {
+                QMessageBox::warning(Utils::getMainWindow(), tr("Move to Trash Failed"),
+                                     tr("No write permission to the trash directory:\n%1\n\n"
+                                        "To delete files permanently instead, open Settings and "
+                                        "change \"Delete mode\" to \"Delete permanently\" under "
+                                        "Shortcut Extender.").arg(trashInfo));
+                return;
+            }
+        }
+
         // Advance to the next track (or stop) before deleting so the audio engine
         // releases any file handle, preventing deletion failures and ensuring
         // consistent behaviour across all platforms.
@@ -97,9 +139,6 @@ void DeleteCurrentlyPlaying::onTriggered()
         else {
             m_playerController->stop();
         }
-
-        const auto mode = static_cast<DeleteMode>(
-            m_settings->fileValue(Settings::DeleteMode, static_cast<int>(DeleteMode::Trash)).toInt());
 
         auto* worker = new DeleteWorker(m_library, tracks, mode);
         auto* thread = new QThread(this);
