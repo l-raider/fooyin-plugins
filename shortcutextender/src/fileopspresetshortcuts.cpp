@@ -104,7 +104,6 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
 
                              auto* thread   = new QThread();
                              auto* executor = new FileOpsExecutor(m_library, tracks);
-                             executor->moveToThread(thread);
 
                              // Quit the thread's event loop when the worker signals
                              // completion, then clean up once it has actually stopped.
@@ -113,12 +112,13 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
                              QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
 
                              if(config.execMode == PresetExecMode::Confirm) {
-                                 // Build the preview synchronously (simulate() is safe to call on
-                                 // the main thread before the executor is moved)
+                                 // simulate() is called before moveToThread so that it runs
+                                 // on the main thread — correct per Qt's ownership rules.
                                  const auto ops = executor->simulate(preset);
 
                                  if(ops.empty()) {
-                                     executor->deleteLater();
+                                     // executor is still on the main thread; delete directly.
+                                     delete executor;
                                      thread->deleteLater();
                                      QMessageBox::information(Utils::getMainWindow(),
                                                               tr("File Operations"),
@@ -133,19 +133,27 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
 
                                  QObject::connect(dialog, &QDialog::accepted, thread,
                                                   [thread, executor, preset]() {
+                                                      executor->moveToThread(thread);
                                                       QObject::connect(thread, &QThread::started, executor,
                                                                        [executor, preset]() {
                                                                            executor->execute(preset);
                                                                        });
                                                       thread->start();
                                                   });
-                                 QObject::connect(dialog, &QDialog::rejected, executor, &QObject::deleteLater);
-                                 QObject::connect(dialog, &QDialog::rejected, thread, &QObject::deleteLater);
+                                 // executor is still on the main thread when rejected fires,
+                                 // so delete directly rather than via deleteLater (which would
+                                 // post to an event loop that was never started).
+                                 QObject::connect(dialog, &QDialog::rejected, dialog,
+                                                  [executor, thread]() {
+                                                      delete executor;
+                                                      thread->deleteLater();
+                                                  });
 
                                  dialog->open();
                              }
                              else {
-                                 // Direct mode: execute immediately
+                                 // Direct mode: move to thread then execute immediately.
+                                 executor->moveToThread(thread);
                                  QObject::connect(thread, &QThread::started, executor,
                                                   [executor, preset]() {
                                                       executor->execute(preset);
