@@ -68,9 +68,11 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
             break;
         }
 
+        bool ok{false};
         switch(item.op) {
             case FileOpsOperation::Create: {
-                if(!QDir{}.mkpath(item.destination)) {
+                ok = QDir{}.mkpath(item.destination);
+                if(!ok) {
                     qCWarning(FILEOPS_SC) << "Failed to create directory" << item.destination;
                     ++failed;
                 }
@@ -80,7 +82,8 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                 // QDir{}.rmdir() treats item.source as an absolute (or cwd-relative)
                 // path. QDir{item.source}.rmdir(item.source) would instead resolve
                 // item.source relative to itself, producing item.source/item.source.
-                if(!QDir{}.rmdir(item.source)) {
+                ok = QDir{}.rmdir(item.source);
+                if(!ok) {
                     qCWarning(FILEOPS_SC) << "Failed to remove directory" << item.source;
                     ++failed;
                 }
@@ -99,6 +102,7 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                     ++failed;
                     break;
                 }
+                ok = true;
                 ++succeeded;
                 break;
             }
@@ -114,6 +118,7 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                     ++failed;
                     break;
                 }
+                ok = true;
                 ++succeeded;
                 break;
             }
@@ -121,7 +126,9 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                 break;
         }
 
-        emit operationFinished(item);
+        if(ok) {
+            emit operationFinished(item);
+        }
     }
 
     // Update library for moved/renamed tracks
