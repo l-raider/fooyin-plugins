@@ -53,6 +53,7 @@ private:
     PlayerController* m_playerController;
     MusicLibrary*     m_library;
     SettingsManager*  m_settings;
+    QAction*          m_action{nullptr};
 };
 
 } // namespace ShortcutExtender

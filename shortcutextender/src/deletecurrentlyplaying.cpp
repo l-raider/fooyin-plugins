@@ -59,19 +59,19 @@ DeleteCurrentlyPlaying::DeleteCurrentlyPlaying(ActionManager* actionManager, Pla
     , m_library{library}
     , m_settings{settings}
 {
-    auto* action = new QAction(tr("Delete currently playing File"), this);
-    auto* cmd    = actionManager->registerAction(action, "ShortcutExtender.DeleteCurrentlyPlaying");
+    m_action = new QAction(tr("Delete currently playing File"), this);
+    auto* cmd = actionManager->registerAction(m_action, "ShortcutExtender.DeleteCurrentlyPlaying");
     cmd->setCategories({tr("Shortcut Extender")});
     Q_UNUSED(cmd)
 
-    QObject::connect(m_playerController, &PlayerController::currentTrackChanged, action,
+    QObject::connect(m_playerController, &PlayerController::currentTrackChanged, m_action,
                      [this]() { updateActionState(); });
-    QObject::connect(m_playerController, &PlayerController::playStateChanged, action,
+    QObject::connect(m_playerController, &PlayerController::playStateChanged, m_action,
                      [this]() { updateActionState(); });
 
     updateActionState();
 
-    QObject::connect(action, &QAction::triggered, this, &DeleteCurrentlyPlaying::onTriggered);
+    QObject::connect(m_action, &QAction::triggered, this, &DeleteCurrentlyPlaying::onTriggered);
 }
 
 void DeleteCurrentlyPlaying::updateActionState()
@@ -82,13 +82,7 @@ void DeleteCurrentlyPlaying::updateActionState()
                         && track.isValid()
                         && !track.isInArchive();
 
-    // The action is a child QObject; find it from children list
-    for(auto* child : children()) {
-        if(auto* action = qobject_cast<QAction*>(child)) {
-            action->setEnabled(canDelete);
-            break;
-        }
-    }
+    m_action->setEnabled(canDelete);
 }
 
 void DeleteCurrentlyPlaying::onTriggered()
