@@ -73,6 +73,7 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
 {
     const QString dataHome = xdgDataHome();
     if(dataHome.isEmpty()) {
+        qCCritical(SHORTCUTEXT) << "Could not determine XDG data home — unable to trash:" << filepath;
         return false;
     }
 
@@ -80,7 +81,8 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
     const QDir trashInfo{dataHome + u"/Trash/info"_s};
 
     if(!trashFiles.mkpath(u"."_s) || !trashInfo.mkpath(u"."_s)) {
-        qCWarning(SHORTCUTEXT) << "Failed to create Trash directories under" << dataHome;
+        qCCritical(SHORTCUTEXT) << "No write permission to Trash directories under" << dataHome
+                                << "— unable to trash:" << filepath;
         return false;
     }
 
@@ -98,15 +100,16 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
         ++counter;
     }
 
-    const QString trashFilePath  = trashFiles.filePath(destName);
-    const QString trashInfoPath  = trashInfo.filePath(destName + u".trashinfo"_s);
-    const QString deletionDate   = QDateTime::currentDateTime().toString(Qt::ISODate);
+    const QString trashFilePath = trashFiles.filePath(destName);
+    const QString trashInfoPath = trashInfo.filePath(destName + u".trashinfo"_s);
+    const QString deletionDate  = QDateTime::currentDateTime().toString(Qt::ISODate);
 
     // Write .trashinfo before moving so the metadata is present if anything fails mid-way.
     {
         QSaveFile infoFile{trashInfoPath};
         if(!infoFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            qCWarning(SHORTCUTEXT) << "Failed to open trash info file for writing:" << trashInfoPath;
+            qCCritical(SHORTCUTEXT) << "No write permission to trash info directory" << trashInfo.path()
+                                    << "— unable to trash:" << filepath;
             return false;
         }
         const QString infoContents = u"[Trash Info]\nPath=%1\nDeletionDate=%2\n"_s
@@ -114,20 +117,29 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
                                          .arg(deletionDate);
         infoFile.write(infoContents.toUtf8());
         if(!infoFile.commit()) {
-            qCWarning(SHORTCUTEXT) << "Failed to write trash info file:" << trashInfoPath;
+            qCWarning(SHORTCUTEXT) << "Failed to write trash info file" << trashInfoPath
+                                   << "— unable to trash:" << filepath;
             return false;
         }
     }
 
     // Attempt a fast rename (works only when source and trash are on the same filesystem).
     if(QFile::rename(filepath, trashFilePath)) {
+        qCDebug(SHORTCUTEXT) << "Trashed (rename):" << filepath << "->" << trashFilePath;
         return true;
     }
 
     // Cross-filesystem fallback: remove the .trashinfo we just wrote and let Qt handle it.
     QFile::remove(trashInfoPath);
-    qCDebug(SHORTCUTEXT) << "Rename to trash failed (cross-filesystem?), falling back to QFile::moveToTrash";
-    return QFile::moveToTrash(filepath);
+    qCDebug(SHORTCUTEXT) << "Same-filesystem rename failed; falling back to QFile::moveToTrash for:" << filepath;
+
+    if(QFile::moveToTrash(filepath)) {
+        qCDebug(SHORTCUTEXT) << "Trashed (QFile::moveToTrash):" << filepath;
+        return true;
+    }
+
+    qCCritical(SHORTCUTEXT) << "All trash strategies failed for:" << filepath;
+    return false;
 }
 
 void DeleteWorker::deleteFiles()
@@ -137,13 +149,18 @@ void DeleteWorker::deleteFiles()
     TrackList deleted;
     std::set<QString> processed;
 
+    qCDebug(SHORTCUTEXT) << "Starting delete for" << m_tracks.size() << "track(s),"
+                         << "mode:" << (m_mode == DeleteMode::Trash ? "trash" : "permanent");
+
     for(const Track& track : m_tracks) {
         if(!mayRun()) {
+            qCDebug(SHORTCUTEXT) << "Delete interrupted by stop request";
             break;
         }
 
         const QString filepath = track.filepath();
         if(processed.contains(filepath)) {
+            qCDebug(SHORTCUTEXT) << "Skipping duplicate path:" << filepath;
             continue;
         }
         processed.emplace(filepath);
@@ -154,10 +171,15 @@ void DeleteWorker::deleteFiles()
         }
         else {
             ok = QFile::remove(filepath);
+            if(ok) {
+                qCDebug(SHORTCUTEXT) << "Permanently deleted:" << filepath;
+            }
+            else {
+                qCCritical(SHORTCUTEXT) << "Failed to permanently delete:" << filepath;
+            }
         }
 
         if(!ok) {
-            qCWarning(SHORTCUTEXT) << "Failed to delete file:" << filepath;
             continue;
         }
 
@@ -165,7 +187,11 @@ void DeleteWorker::deleteFiles()
     }
 
     if(!deleted.empty()) {
+        qCDebug(SHORTCUTEXT) << "Removing" << deleted.size() << "track(s) from library";
         m_library->deleteTracks(deleted);
+    }
+    else {
+        qCWarning(SHORTCUTEXT) << "Delete operation completed but no files were successfully deleted";
     }
 
     setState(Idle);
