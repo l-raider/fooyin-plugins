@@ -457,15 +457,11 @@ ChecksumResult AudioChecksumWorker::computeChecksum(const Track& track,
 
     result.computedHash = QString::fromLatin1(hash.result().toHex());
 
-    if(result.storedHash.isEmpty()) {
-        result.status = ChecksumResult::Status::New;
+    if(!result.storedHash.isEmpty()) {
+        result.status = (result.computedHash == result.storedHash) ? ChecksumResult::Status::Match
+                                                                   : ChecksumResult::Status::Mismatch;
     }
-    else if(result.computedHash == result.storedHash) {
-        result.status = ChecksumResult::Status::Match;
-    }
-    else {
-        result.status = ChecksumResult::Status::Mismatch;
-    }
+    // else: storedHash is empty — status stays at its default (New)
 
     return result;
 }
