@@ -42,8 +42,9 @@ DeleteDialog::DeleteDialog(const TrackList& tracks, DeleteMode mode, SettingsMan
     const QString action = trashing ? tr("move to trash") : tr("permanently delete");
     const QString message
         = tracks.size() == 1
-              ? tr("Are you sure you want to %1 \"%2\"?\n%3")
-                    .arg(action, tracks.front().effectiveTitle(), tracks.front().filepath())
+              ? tr("Are you sure you want to %1 \"%2 - %3\"?\n%4")
+                    .arg(action, tracks.front().artist(),
+                         tracks.front().effectiveTitle(), tracks.front().filepath())
               : tr("Are you sure you want to %1 %2 tracks?").arg(action).arg(tracks.size());
 
     auto* label = new QLabel(message, this);
