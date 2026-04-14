@@ -129,8 +129,14 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
                                          .arg(deletionDate);
         infoFile.write(infoContents.toUtf8());
         if(!infoFile.commit()) {
-            qCWarning(SHORTCUTEXT) << "Failed to write trash info file" << trashInfoPath
-                                   << "— unable to trash:" << filepath;
+            const QString msg = tr("Failed to write trash metadata for:\n%1\n\n"
+                                   "The disk may be full or the Trash directory is not writable.\n\n"
+                                   "To delete files permanently instead, open Settings and "
+                                   "change \"Delete mode\" to \"Delete permanently\" under "
+                                   "Shortcut Extender.").arg(filepath);
+            qCCritical(SHORTCUTEXT) << "Failed to write trash info file" << trashInfoPath
+                                    << "— unable to trash:" << filepath;
+            emit trashError(msg);
             return false;
         }
     }
