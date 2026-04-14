@@ -106,7 +106,9 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
                              auto* executor = new FileOpsExecutor(m_library, tracks);
                              executor->moveToThread(thread);
 
-                             // Executor is deleted when the thread finishes
+                             // Quit the thread's event loop when the worker signals
+                             // completion, then clean up once it has actually stopped.
+                             QObject::connect(executor, &Worker::finished, thread, &QThread::quit);
                              QObject::connect(thread, &QThread::finished, executor, &QObject::deleteLater);
                              QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
 
