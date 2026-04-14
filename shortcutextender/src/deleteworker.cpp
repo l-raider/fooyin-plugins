@@ -125,8 +125,7 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
 
     // Attempt a fast rename (works only when source and trash are on the same filesystem).
     if(QFile::rename(filepath, trashFilePath)) {
-        qCInfo(SHORTCUTEXT) << "Trashed:" << filepath;
-        qCDebug(SHORTCUTEXT) << "  ->" << trashFilePath;
+        qCInfo(SHORTCUTEXT) << "Trashed:" << filepath << "->" << trashFilePath;
         return true;
     }
 
