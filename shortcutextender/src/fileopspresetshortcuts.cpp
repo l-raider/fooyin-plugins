@@ -72,11 +72,11 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
 
     for(const FileOpPreset& preset : presets) {
         const QString actionId = u"FileOps.Preset."_s + sanitiseName(preset.name);
-        const QString label    = preset.name + u" ("_s + operationDisplayName(preset.op) + u")"_s;
+        const QString label    = u"File operations preset: "_s + preset.name + u" ("_s + operationDisplayName(preset.op) + u")"_s;
 
         auto* action = new QAction(label, this);
         auto* cmd    = actionManager->registerAction(action, Id(actionId));
-        cmd->setCategories({tr("File Operations")});
+        cmd->setCategories({tr("Shortcut Extender")});
         Q_UNUSED(cmd)
 
         m_presetActions.push_back(action);
