@@ -40,6 +40,7 @@ public:
 
 signals:
     void deleteFinished(const Fooyin::TrackList& deletedTracks);
+    void trashError(const QString& message);
 
 private:
     [[nodiscard]] bool moveToXdgTrash(const QString& filepath);

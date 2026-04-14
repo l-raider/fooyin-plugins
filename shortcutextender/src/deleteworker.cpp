@@ -73,7 +73,9 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
 {
     const QString dataHome = xdgDataHome();
     if(dataHome.isEmpty()) {
-        qCCritical(SHORTCUTEXT) << "Could not determine XDG data home — unable to trash:" << filepath;
+        const QString msg = tr("Could not determine a writable data directory. Unable to move to trash:\n%1").arg(filepath);
+        qCCritical(SHORTCUTEXT) << msg;
+        emit trashError(msg);
         return false;
     }
 
@@ -81,8 +83,13 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
     const QDir trashInfo{dataHome + u"/Trash/info"_s};
 
     if(!trashFiles.mkpath(u"."_s) || !trashInfo.mkpath(u"."_s)) {
+        const QString msg = tr("No write permission to the trash directory:\n%1\n\n"
+                               "To delete files permanently instead, open Settings and "
+                               "change \"Delete mode\" to \"Delete permanently\" under "
+                               "Shortcut Extender.").arg(trashFiles.path());
         qCCritical(SHORTCUTEXT) << "No write permission to Trash directories under" << dataHome
                                 << "— unable to trash:" << filepath;
+        emit trashError(msg);
         return false;
     }
 
@@ -108,8 +115,13 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
     {
         QSaveFile infoFile{trashInfoPath};
         if(!infoFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            const QString msg = tr("No write permission to the trash directory:\n%1\n\n"
+                                   "To delete files permanently instead, open Settings and "
+                                   "change \"Delete mode\" to \"Delete permanently\" under "
+                                   "Shortcut Extender.").arg(trashInfo.path());
             qCCritical(SHORTCUTEXT) << "No write permission to trash info directory" << trashInfo.path()
                                     << "— unable to trash:" << filepath;
+            emit trashError(msg);
             return false;
         }
         const QString infoContents = u"[Trash Info]\nPath=%1\nDeletionDate=%2\n"_s
@@ -138,7 +150,12 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
         return true;
     }
 
+    const QString msg = tr("Failed to move file to trash:\n%1\n\n"
+                           "To delete files permanently instead, open Settings and "
+                           "change \"Delete mode\" to \"Delete permanently\" under "
+                           "Shortcut Extender.").arg(filepath);
     qCCritical(SHORTCUTEXT) << "All trash strategies failed for:" << filepath;
+    emit trashError(msg);
     return false;
 }
 
