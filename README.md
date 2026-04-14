@@ -11,7 +11,8 @@ Configurable under **Settings → Plugins → "plugin name"**.
 
 - MD5 checksum scanner for selected tracks, accessible via **right-click → Utilities → Audio Checksum…**.  
 - FLAC files are checked against the embedded STREAMINFO MD5.  
-- Concurrency for file processing is configurable under **Settings → Plugins → AudioChecksum**.  
+- Configureable tag name for checksum data
+- Configureable concurrency for file processing
 - Currently only tested on FLAC and MP3 files.  
 
 ### Shortcut Extender
