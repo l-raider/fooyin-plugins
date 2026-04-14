@@ -28,6 +28,7 @@
 #include <QLoggingCategory>
 #include <QSaveFile>
 #include <QStandardPaths>
+#include <QUrl>
 
 Q_LOGGING_CATEGORY(SHORTCUTEXT, "fy.shortcutextender")
 
@@ -124,8 +125,9 @@ bool DeleteWorker::moveToXdgTrash(const QString& filepath)
             emit trashError(msg);
             return false;
         }
+        const QString encodedPath = QString::fromUtf8(QUrl::toPercentEncoding(filepath, "/"));
         const QString infoContents = u"[Trash Info]\nPath=%1\nDeletionDate=%2\n"_s
-                                         .arg(filepath)
+                                         .arg(encodedPath)
                                          .arg(deletionDate);
         infoFile.write(infoContents.toUtf8());
         if(!infoFile.commit()) {
