@@ -1,0 +1,10 @@
+{
+    "Name" : "Shortcut Extender",
+    "Version" : "${FOOYIN_VERSION}",
+    "Author" : "fooyin-plugins",
+    "Copyright" : "Copyright © 2026",
+    "License" : [ "GNU General Public License v3+" ],
+    "Category" : "General",
+    "Description" : "Adds extra keyboard-accessible actions to fooyin",
+    "Url" : "https://github.com/fooyin/fooyin-plugins"
+}
