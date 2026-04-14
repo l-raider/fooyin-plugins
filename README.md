@@ -4,22 +4,18 @@ Third-party plugins for the [Fooyin](https://github.com/fooyin/fooyin/) media pl
 
 See [BUILD.md](BUILD.md) for build and installation instructions.
 
----
-
 ## Plugins
+Configurable under **Settings → Plugins → "plugin name"**. 
 
-### AudioChecksum
+### Audio Checksum
 
-MD5 checksum scanner for selected tracks, accessible via **right-click → Utilities → Audio Checksum…**. FLAC files are checked against the embedded STREAMINFO MD5. Results are shown in a sortable pass/fail table. Thread count is configurable under **Settings → Plugins → AudioChecksum**.
+- MD5 checksum scanner for selected tracks, accessible via **right-click → Utilities → Audio Checksum…**.  
+- FLAC files are checked against the embedded STREAMINFO MD5.  
+- Concurrency for file processing is configurable under **Settings → Plugins → AudioChecksum**.  
+- Currently only tested on FLAC and MP3 files.  
 
----
+### Shortcut Extender
 
-### ShortcutExtender
-
-Adds bindable actions under **Settings → Shortcuts → Shortcut Extender**.
-
-**Delete Currently Playing** — deletes the current track's file (trash or permanent), advancing playback first so the file handle is released. Optional confirmation dialog with a "don't ask again" option. Configure trash vs. permanent under **Settings → Plugins → Shortcut Extender**.
-
-**FileOps Preset Shortcuts** — exposes each FileOps preset as a bindable shortcut. Per-preset options: track source (selection or now playing) and execution mode (confirm dialog or immediate). Configure under **Settings → Plugins → Shortcut Extender**.
-
-
+- Adds new shorcuts (hotkeys) under **Settings → Shortcuts → Shortcut Extender**.  
+  - **Delete Currently Playing**: Deletes the currently playing/paused track's file (trashbin or permanent).
+  - **FileOps Preset Shortcuts**: Exposes each File Operation preset as a bindable shortcut.  
