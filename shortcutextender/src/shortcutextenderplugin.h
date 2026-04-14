@@ -35,6 +35,7 @@ class SettingsManager;
 
 namespace ShortcutExtender {
 class DeleteCurrentlyPlaying;
+class FileOpsPresetShortcuts;
 
 class ShortcutExtenderPlugin : public QObject,
                                public Plugin,
@@ -59,7 +60,8 @@ private:
     PlayerController* m_playerController{nullptr};
     SettingsManager*  m_settings{nullptr};
 
-    std::unique_ptr<DeleteCurrentlyPlaying> m_deleteCurrentlyPlaying;
+    std::unique_ptr<DeleteCurrentlyPlaying>    m_deleteCurrentlyPlaying;
+    std::unique_ptr<FileOpsPresetShortcuts>     m_fileOpsPresetShortcuts;
 };
 
 } // namespace ShortcutExtender

@@ -21,7 +21,16 @@ create_fooyin_plugin(
     JSON_IN src/shortcutextender.json.in
     DEPENDS Fooyin::Core
             Fooyin::Gui
+            Fooyin::Utils
     SOURCES src/shortcutextenderdefs.h
+            src/fileopsbridge.h
+            src/fileopsscriptenvironment.h
+            src/fileopsexecutor.h
+            src/fileopsexecutor.cpp
+            src/fileopsconfirmdialog.h
+            src/fileopsconfirmdialog.cpp
+            src/fileopspresetshortcuts.h
+            src/fileopspresetshortcuts.cpp
             src/shortcutextendersettings.h
             src/shortcutextendersettings.cpp
             src/deleteworker.h
