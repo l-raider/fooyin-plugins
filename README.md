@@ -10,34 +10,19 @@ See [BUILD.md](BUILD.md) for build and installation instructions.
 
 ### AudioChecksum
 
-Calculates and verifies audio checksums for selected tracks via a right-click context menu entry ("Audio Checksum…" under Utilities).
-
-- Computes a canonical MD5 fingerprint of the decoded audio stream, independent of tags or container metadata
-- FLAC files are verified against the embedded STREAMINFO MD5 so results match the values written by flac/metaflac
-- Other formats are normalised to pcm_s16le before hashing, matching FFmpeg's `md5` muxer output
-- Scanning runs in parallel using a configurable thread pool
-- Results are shown in a sortable table with per-track pass/fail status
-- Configurable via Settings → Plugins → AudioChecksum (thread count)
+Verifies the audio data in your music files hasn't been corrupted or altered. Right-click any tracks and choose **Utilities → Audio Checksum…** to scan them. Results show a clear pass/fail for each track. Configurable via **Settings → Plugins → AudioChecksum**.
 
 ---
 
 ### ShortcutExtender
 
-Adds keyboard-shortcut-driven actions that go beyond fooyin's built-in shortcut system.
+Adds extra actions you can bind to keyboard shortcuts in **Settings → Shortcuts**.
 
 **Delete Currently Playing**
 
-- Registers a bindable "Delete currently playing file" action (Settings → Shortcuts → Shortcut Extender)
-- Supports move-to-trash or permanent delete, configurable in Settings → Plugins → Shortcut Extender
-- Advances playback to the next track (or stops) before deleting so the audio engine releases its file handle
-- Optional confirmation dialog; "Do not ask again" checkbox suppresses it permanently
-- Safe inside Flatpak: trash operations write to the host `~/.local/share/Trash` rather than the app-private container
+Deletes the track you're currently listening to with a single keypress. Fooyin automatically skips to the next track first. You can choose between moving the file to the trash or deleting it permanently, and optionally turn off the confirmation prompt once you're comfortable with it. Configure in **Settings → Plugins → Shortcut Extender**.
 
 **FileOps Preset Shortcuts**
 
-- Reads presets defined in the [FileOps](https://github.com/fooyin/fooyin/) plugin and registers a bindable shortcut for each one
-- Each preset action can be configured independently (Settings → Plugins → Shortcut Extender):
-  - *Track source* — operate on the currently selected tracks or the currently playing track
-  - *Execution mode* — show a preview/confirm dialog before running, or execute immediately
-- The confirm dialog lists every file operation (source → destination) before committing
-- Supports all FileOps operation types: Copy, Move, Rename
+If you use the FileOps plugin to copy, move, or rename files, this lets you trigger any of your saved FileOps presets from a keyboard shortcut. For each preset you can choose whether it acts on your currently selected tracks or the track that's playing, and whether to show a preview of what will happen before it runs. Configure in **Settings → Plugins → Shortcut Extender**.
+
