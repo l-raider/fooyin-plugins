@@ -106,11 +106,6 @@ void DeleteCurrentlyPlaying::onTriggered()
         auto* thread = new QThread(this);
         worker->moveToThread(thread);
 
-        QObject::connect(worker, &DeleteWorker::deleteFinished, this, [](const TrackList& /*deletedTracks*/) {
-            // Status bar notification: StatusEvent is a private fooyin header; deletion is
-            // self-evident from the library view. Add status feedback here if the header
-            // is made public in a future fooyin release.
-        });
         QObject::connect(worker, &DeleteWorker::trashError, this, [](const QString& message) {
             QMessageBox::warning(Utils::getMainWindow(), tr("Move to Trash Failed"), message);
         });
