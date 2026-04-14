@@ -109,12 +109,20 @@ void DeleteCurrentlyPlaying::onTriggered()
 
         // When trashing, verify the trash directories are writable before
         // advancing playback — the source dir being writable is not enough.
+        // Only check directories that already exist: on a fresh user account
+        // the Trash sub-directories don't exist yet and QFileInfo::isWritable()
+        // returns false for non-existent paths, giving a false permission error.
+        // The worker creates them via mkpath on first use and reports any real
+        // failure there.
         if(mode == DeleteMode::Trash) {
-            const QString dataHome  = xdgDataHome();
+            const QString dataHome   = xdgDataHome();
             const QString trashFiles = dataHome + u"/Trash/files"_s;
             const QString trashInfo  = dataHome + u"/Trash/info"_s;
 
-            if(!QFileInfo(trashFiles).isWritable() || !QFileInfo(trashInfo).isWritable()) {
+            const QFileInfo trashFilesInfo{trashFiles};
+            const QFileInfo trashInfoInfo{trashInfo};
+            if((trashFilesInfo.exists() && !trashFilesInfo.isWritable())
+               || (trashInfoInfo.exists() && !trashInfoInfo.isWritable())) {
                 QMessageBox::warning(Utils::getMainWindow(), tr("Move to Trash Failed"),
                                      tr("No write permission to the trash directory:\n%1\n\n"
                                         "To delete files permanently instead, open Settings and "
