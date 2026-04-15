@@ -351,7 +351,9 @@ float applyAggregation(const std::vector<BpmCandidate>& candidates,
                 sumWB += static_cast<double>(c.bpm) * static_cast<double>(c.weight);
                 sumW  += static_cast<double>(c.weight);
             }
-            return sumW > 0.0 ? static_cast<float>(sumWB / sumW) : fallbackBpm;
+            // sumW is always > 0: buildCandidates filters w <= 0,
+            // and applyAggregation is only called with non-empty candidates.
+            return static_cast<float>(sumWB / sumW);
         }
 
         case AggregationMethod::Mean: {
