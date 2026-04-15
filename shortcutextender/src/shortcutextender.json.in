@@ -1,6 +1,6 @@
 {
     "Name" : "Shortcut Extender",
-    "Version" : "${FOOYIN_VERSION}",
+    "Version": "@PROJECT_VERSION@",
     "Author" : "l-raider",
     "Copyright" : "Copyright © 2026",
     "License" : [ "GNU General Public License v3+" ],
