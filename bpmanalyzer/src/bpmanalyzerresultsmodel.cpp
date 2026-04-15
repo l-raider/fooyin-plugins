@@ -113,19 +113,19 @@ void BpmAnalyzerResultsModel::sort(int column, Qt::SortOrder order)
 
     std::sort(m_results.begin(), m_results.end(),
               [column, order](const BpmResult& a, const BpmResult& b) {
+                  const auto col = static_cast<Column>(column);
+                  if(col == Column::AnalyzedBpm || col == Column::StoredBpm) {
+                      const QString& sa = (col == Column::AnalyzedBpm) ? a.analyzedBpm : a.storedBpm;
+                      const QString& sb = (col == Column::AnalyzedBpm) ? b.analyzedBpm : b.storedBpm;
+                      const float fa = sa.toFloat();
+                      const float fb = sb.toFloat();
+                      return order == Qt::AscendingOrder ? (fa < fb) : (fa > fb);
+                  }
                   QString va, vb;
-                  switch(static_cast<Column>(column)) {
+                  switch(col) {
                       case Column::Filename:
                           va = QFileInfo{a.track.filepath()}.fileName();
                           vb = QFileInfo{b.track.filepath()}.fileName();
-                          break;
-                      case Column::AnalyzedBpm:
-                          va = a.analyzedBpm;
-                          vb = b.analyzedBpm;
-                          break;
-                      case Column::StoredBpm:
-                          va = a.storedBpm;
-                          vb = b.storedBpm;
                           break;
                       default:
                           break;
