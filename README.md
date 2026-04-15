@@ -44,7 +44,6 @@ Candidates are sorted and the middle value is taken. A handful of wildly wrong b
 **Mode** *(most frequent integer BPM)*  
 Candidates are rounded to the nearest integer BPM and binned by total weight. The bin with the highest accumulated weight wins, always producing a whole-number result. Best for libraries where you want clean round values and the music has a steady, fixed tempo.
 
----
 
 ### Shortcut Extender
 
