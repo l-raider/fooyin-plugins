@@ -1,7 +1,7 @@
 {
     "Name" : "Shortcut Extender",
     "Version" : "${FOOYIN_VERSION}",
-    "Author" : "fooyin-plugins",
+    "Author" : "l-raider",
     "Copyright" : "Copyright © 2026",
     "License" : [ "GNU General Public License v3+" ],
     "Category" : "General",
