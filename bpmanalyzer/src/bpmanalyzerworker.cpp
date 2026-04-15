@@ -404,10 +404,8 @@ QString formatBpm(float bpm, int precision)
 // BpmAnalyzerWorker
 // ---------------------------------------------------------------------------
 
-BpmAnalyzerWorker::BpmAnalyzerWorker(std::shared_ptr<AudioLoader> audioLoader,
-                                     QObject* parent)
-    : QObject{parent}
-    , m_audioLoader{std::move(audioLoader)}
+BpmAnalyzerWorker::BpmAnalyzerWorker(std::shared_ptr<AudioLoader> audioLoader)
+    : m_audioLoader{std::move(audioLoader)}
 { }
 
 BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
@@ -538,5 +536,3 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
 }
 
 } // namespace Fooyin::BpmAnalyzer
-
-#include "moc_bpmanalyzerworker.cpp"

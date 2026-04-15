@@ -23,7 +23,6 @@
 #include <core/track.h>
 
 #include <QAtomicInt>
-#include <QObject>
 
 #include <memory>
 
@@ -41,13 +40,10 @@ namespace Fooyin::BpmAnalyzer {
  * each invocation creates its own decoder and BPMDetect instance; there is
  * no shared mutable state other than the thread-safe AudioLoader.
  */
-class BpmAnalyzerWorker : public QObject
+class BpmAnalyzerWorker
 {
-    Q_OBJECT
-
 public:
-    explicit BpmAnalyzerWorker(std::shared_ptr<AudioLoader> audioLoader,
-                               QObject* parent = nullptr);
+    explicit BpmAnalyzerWorker(std::shared_ptr<AudioLoader> audioLoader);
 
     [[nodiscard]] BpmResult computeBpm(const Track& track,
                                        const QAtomicInt& cancelled) const;
