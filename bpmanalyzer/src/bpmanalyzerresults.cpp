@@ -317,11 +317,6 @@ QSize BpmAnalyzerResults::sizeHint() const
     return size;
 }
 
-QSize BpmAnalyzerResults::minimumSizeHint() const
-{
-    return QDialog::minimumSizeHint();
-}
-
 } // namespace Fooyin::BpmAnalyzer
 
 #include "moc_bpmanalyzerresults.cpp"

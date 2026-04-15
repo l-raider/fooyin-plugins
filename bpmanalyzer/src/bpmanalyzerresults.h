@@ -64,7 +64,6 @@ public:
                        QWidget* parent = nullptr);
 
     [[nodiscard]] QSize sizeHint() const override;
-    [[nodiscard]] QSize minimumSizeHint() const override;
 
 protected:
     void closeEvent(QCloseEvent* event) override;
