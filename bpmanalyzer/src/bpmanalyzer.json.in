@@ -1,0 +1,10 @@
+{
+    "Name": "BPM Analyzer",
+    "Version": "@PROJECT_VERSION@",
+    "Author": "l-raider",
+    "Copyright": "",
+    "License": ["GPL v3"],
+    "Category": "Tools",
+    "Description": "Automatically analyse BPM (beats per minute) for selected tracks using SoundTouch. Results can be written to the standard BPM tag.",
+    "Url": "https://github.com/l-raider/fooyin-plugins"
+}

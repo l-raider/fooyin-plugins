@@ -1,3 +1,6 @@
 [submodule "fooyin"]
 	path = fooyin
 	url = https://github.com/fooyin/fooyin.git
+[submodule "bpmanalyzer/3rdparty/soundtouch"]
+	path = bpmanalyzer/3rdparty/soundtouch
+	url = https://codeberg.org/soundtouch/soundtouch.git
