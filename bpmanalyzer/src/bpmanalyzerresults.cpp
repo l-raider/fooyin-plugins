@@ -263,6 +263,9 @@ void BpmAnalyzerResults::saveToTags()
 void BpmAnalyzerResults::updateButtons()
 {
     m_saveButton->setEnabled(!m_resultsModel->resultsToSave().isEmpty());
+    const bool hasSelection = m_resultsView->selectionModel()->hasSelection();
+    m_doubleBpmButton->setEnabled(hasSelection);
+    m_halveBpmButton->setEnabled(hasSelection);
 }
 
 void BpmAnalyzerResults::closeEvent(QCloseEvent* event)
