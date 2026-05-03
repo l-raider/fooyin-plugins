@@ -232,6 +232,8 @@ void BpmAnalyzerResults::saveToTags()
     }
 
     m_status->setText(tr("Writing to file tags…"));
+    m_doubleBpmButton->setEnabled(false);
+    m_halveBpmButton->setEnabled(false);
     m_saveButton->setEnabled(false);
 
     // Use a regular (non-single-shot) connection so that spurious
