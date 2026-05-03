@@ -37,6 +37,7 @@
 #include <QMenu>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSet>
 #include <QSortFilterProxyModel>
 #include <QTableView>
 #include <QUrl>
@@ -219,23 +220,40 @@ void BpmAnalyzerResults::saveToTags()
     if(toSave.isEmpty())
         return;
 
+    QSet<QString> writtenPaths;
+    writtenPaths.reserve(toSave.size());
+
     TrackList tracks;
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
         result.track.replaceExtraTag(QLatin1String{BpmTagField}, result.analyzedBpm);
+        writtenPaths.insert(result.track.filepath());
         tracks.push_back(result.track);
     }
 
     m_status->setText(tr("Writing to file tags…"));
     m_saveButton->setEnabled(false);
 
-    QObject::connect(m_library, &MusicLibrary::tracksMetadataChanged,
-                     this, [this]() {
-                         m_resultsModel->markSaved();
-                         m_status->setText(tr("Tags saved."));
-                         updateButtons();
-                     },
-                     Qt::SingleShotConnection);
+    // Use a regular (non-single-shot) connection so that spurious
+    // tracksMetadataChanged emissions from unrelated library writes don't
+    // consume the connection before our write has actually completed.
+    // We disconnect manually once we see at least one of our own paths.
+    auto conn = std::make_shared<QMetaObject::Connection>();
+    *conn = QObject::connect(
+        m_library, &MusicLibrary::tracksMetadataChanged,
+        this, [this, writtenPaths, conn](const TrackList& changed) {
+            const bool ours = std::any_of(
+                changed.cbegin(), changed.cend(),
+                [&writtenPaths](const Track& t) {
+                    return writtenPaths.contains(t.filepath());
+                });
+            if(!ours)
+                return;
+            QObject::disconnect(*conn);
+            m_resultsModel->markSaved();
+            m_status->setText(tr("Tags saved."));
+            updateButtons();
+        });
 
     m_library->writeTrackMetadata(tracks);
 }
