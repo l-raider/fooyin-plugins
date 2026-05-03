@@ -152,7 +152,15 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
                                  dialog->open();
                              }
                              else {
-                                 // Direct mode: move to thread then execute immediately.
+                                 // Direct mode: build the operation list on the main thread
+                                 // before moving the executor, so that execute() on the
+                                 // worker thread never calls m_library->tracks() — which
+                                 // reads p->m_tracks without a mutex and would race with
+                                 // main-thread library mutations (scans, metadata writes).
+                                 // simulate() populates m_operations; execute() skips
+                                 // buildOperations() when m_operations is already non-empty.
+                                 executor->simulate(preset);
+
                                  executor->moveToThread(thread);
                                  QObject::connect(thread, &QThread::started, executor,
                                                   [executor, preset]() {
