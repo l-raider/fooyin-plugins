@@ -185,14 +185,22 @@ void AudioChecksumResultsModel::markSaved()
 {
     for(qsizetype i{0}; i < m_results.size(); ++i) {
         auto& result = m_results[i];
-        if(result.status == ChecksumResult::Status::New
-           || result.status == ChecksumResult::Status::Mismatch) {
-            result.storedHash = result.computedHash;
-            result.status     = ChecksumResult::Status::Match;
-            const QModelIndex first = index(static_cast<int>(i), 0);
-            const QModelIndex last  = index(static_cast<int>(i), columnCount() - 1);
-            emit dataChanged(first, last);
-        }
+        if(result.status != ChecksumResult::Status::New
+           && result.status != ChecksumResult::Status::Mismatch)
+            continue;
+
+        // FLAC files are never written (STREAMINFO MD5 is authoritative) —
+        // keep their status intact so a Mismatch remains visible.
+        const QString codec = result.track.codec().toLower();
+        if(codec == u"flac"_s
+           || result.track.filepath().endsWith(u".flac"_s, Qt::CaseInsensitive))
+            continue;
+
+        result.storedHash = result.computedHash;
+        result.status     = ChecksumResult::Status::Match;
+        const QModelIndex first = index(static_cast<int>(i), 0);
+        const QModelIndex last  = index(static_cast<int>(i), columnCount() - 1);
+        emit dataChanged(first, last);
     }
 }
 
