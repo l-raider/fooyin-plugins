@@ -121,13 +121,19 @@ void DeleteCurrentlyPlaying::onTriggered()
 
             const QFileInfo trashFilesInfo{trashFiles};
             const QFileInfo trashInfoInfo{trashInfo};
-            if((trashFilesInfo.exists() && !trashFilesInfo.isWritable())
-               || (trashInfoInfo.exists() && !trashInfoInfo.isWritable())) {
+            const QString* badDir = nullptr;
+            if(trashFilesInfo.exists() && !trashFilesInfo.isWritable()) {
+                badDir = &trashFiles;
+            }
+            else if(trashInfoInfo.exists() && !trashInfoInfo.isWritable()) {
+                badDir = &trashInfo;
+            }
+            if(badDir) {
                 QMessageBox::warning(Utils::getMainWindow(), tr("Move to Trash Failed"),
                                      tr("No write permission to the trash directory:\n%1\n\n"
                                         "To delete files permanently instead, open Settings and "
                                         "change \"Delete mode\" to \"Delete permanently\" under "
-                                        "Shortcut Extender.").arg(trashInfo));
+                                        "Shortcut Extender.").arg(*badDir));
                 return;
             }
         }
