@@ -67,8 +67,7 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
     , m_playerController{playerController}
     , m_library{library}
 {
-    const auto presets    = getFileOpsPresets();
-    const auto configMap  = loadPresetConfigs();
+    const auto presets = getFileOpsPresets();
 
     for(const FileOpPreset& preset : presets) {
         const QString actionId = u"FileOps.Preset."_s + sanitiseName(preset.name);
@@ -81,11 +80,12 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
 
         m_presetActions.push_back(action);
 
-        // Capture config by value (falls back to defaults if not configured yet)
-        const FileOpsPresetConfig config = configMap.value(preset.name);
-
         QObject::connect(action, &QAction::triggered, this,
-                         [this, preset, config]() {
+                         [this, preset]() {
+                             // Re-read config at trigger time so that changes made in
+                             // the Settings dialog take effect without restarting.
+                             const FileOpsPresetConfig config = loadPresetConfigs().value(preset.name);
+
                              // Determine the track list
                              TrackList tracks;
                              if(config.trackSource == PresetTrackSource::Playing) {
