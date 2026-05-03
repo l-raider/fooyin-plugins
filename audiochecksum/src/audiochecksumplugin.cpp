@@ -27,8 +27,6 @@
 #include <gui/guiconstants.h>
 #include <gui/plugins/guiplugincontext.h>
 #include <gui/trackselectioncontroller.h>
-#include <utils/actions/actioncontainer.h>
-#include <utils/actions/actionmanager.h>
 #include <utils/utils.h>
 
 #include <QAction>
@@ -47,7 +45,6 @@ void AudioChecksumPlugin::initialise(const CorePluginContext& context)
 
 void AudioChecksumPlugin::initialise(const GuiPluginContext& context)
 {
-    m_actionManager       = context.actionManager;
     m_selectionController = context.trackSelection;
 
     setupContextMenu();
@@ -55,16 +52,8 @@ void AudioChecksumPlugin::initialise(const GuiPluginContext& context)
 
 void AudioChecksumPlugin::setupContextMenu()
 {
-    auto* utilitiesMenu =
-        m_actionManager->actionContainer(Constants::Menus::Context::Utilities);
-
-    auto* action = new QAction(tr("Audio Checksum…"), Utils::getMainWindow());
+    auto* action = new QAction(tr("Audio Checksum…"), this);
     action->setStatusTip(tr("Calculate or verify MD5 checksums for selected tracks"));
-    utilitiesMenu->menu()->addAction(action);
-
-    const auto updateAction = [this, action]() {
-        action->setEnabled(!m_selectionController->selectedTracks().empty());
-    };
 
     QObject::connect(action, &QAction::triggered, this, [this]() {
         const TrackList tracks = m_selectionController->selectedTracks();
@@ -76,11 +65,15 @@ void AudioChecksumPlugin::setupContextMenu()
         dlg->show();
     });
 
-    QObject::connect(m_selectionController,
-                     &TrackSelectionController::selectionChanged,
-                     this, updateAction);
-
-    updateAction();
+    m_selectionController->registerTrackContextAction(
+        this, TrackContextMenuArea::Track,
+        Constants::Menus::Context::Utilities,
+        "AudioChecksum.Calculate",
+        tr("Audio Checksum…"),
+        [action](QMenu* menu, const TrackSelection& selection) {
+            action->setEnabled(!selection.tracks.empty());
+            menu->addAction(action);
+        });
 }
 
 bool AudioChecksumPlugin::hasSettings() const

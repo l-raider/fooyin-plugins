@@ -27,7 +27,6 @@
 #include <memory>
 
 namespace Fooyin {
-class ActionManager;
 class AudioLoader;
 class MusicLibrary;
 class TrackSelectionController;
@@ -56,7 +55,6 @@ private:
 
     std::shared_ptr<AudioLoader> m_audioLoader;
     MusicLibrary*             m_library{nullptr};
-    ActionManager*            m_actionManager{nullptr};
     TrackSelectionController* m_selectionController{nullptr};
 };
 
