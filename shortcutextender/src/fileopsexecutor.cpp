@@ -29,6 +29,7 @@
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QLoggingCategory>
 #include <QRegularExpression>
 
@@ -72,6 +73,16 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
     int failed{0};
     TrackList successfulTrackUpdates;
     successfulTrackUpdates.reserve(m_tracksToUpdate.size());
+
+    // Pre-build a path → track map so the post-move update is O(1) per
+    // operation instead of O(n) (linear scan over m_tracksToUpdate).
+    // QMultiHash because multiple virtual tracks (e.g. CUE-indexed) can
+    // share the same physical filepath.
+    QMultiHash<QString, Track> tracksByDest;
+    tracksByDest.reserve(m_tracksToUpdate.size());
+    for(const Track& t : m_tracksToUpdate) {
+        tracksByDest.insert(t.filepath(), t);
+    }
 
     for(const FileOpsItem& item : m_operations) {
         if(!mayRun()) {
@@ -148,10 +159,9 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
 
         if(ok) {
             if(item.op == FileOpsOperation::Move || item.op == FileOpsOperation::Rename) {
-                for(const Track& track : m_tracksToUpdate) {
-                    if(track.filepath() == item.destination) {
-                        successfulTrackUpdates.push_back(track);
-                    }
+                const auto [begin, end] = tracksByDest.equal_range(item.destination);
+                for(auto it = begin; it != end; ++it) {
+                    successfulTrackUpdates.push_back(it.value());
                 }
             }
             emit operationFinished(item);
