@@ -26,10 +26,13 @@
 #include <utils/fileutils.h>
 
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QLoggingCategory>
 #include <QRegularExpression>
+
+#include <algorithm>
 
 Q_LOGGING_CATEGORY(FILEOPS_SC, "fy.shortcutextender.fileops")
 
@@ -192,6 +195,12 @@ void FileOpsExecutor::processMove(const FileOpPreset& preset)
             sourcePaths.emplace(srcPath);
             const QDir srcDir{srcPath};
             const QStringList files = Utils::File::getFilesInDirRecursive(srcPath);
+            std::vector<QString> dirsToRemove;
+            QDirIterator dirIt(srcPath, QDir::Dirs | QDir::NoDotAndDotDot,
+                               QDirIterator::Subdirectories);
+            while(dirIt.hasNext()) {
+                dirsToRemove.push_back(dirIt.next());
+            }
 
             for(const QString& file : files) {
                 const QString relativePath = srcDir.relativeFilePath(file);
@@ -218,6 +227,14 @@ void FileOpsExecutor::processMove(const FileOpPreset& preset)
             }
 
             if(preset.removeEmpty) {
+                std::sort(dirsToRemove.begin(), dirsToRemove.end(),
+                          [](const QString& a, const QString& b) {
+                              return a.size() > b.size();
+                          });
+                for(const QString& dirPath : dirsToRemove) {
+                    m_operations.push_back({FileOpsOperation::Remove,
+                                            QFileInfo{dirPath}.fileName(), dirPath, {}});
+                }
                 m_operations.push_back({FileOpsOperation::Remove, srcDir.dirName(), srcPath, {}});
             }
         }
