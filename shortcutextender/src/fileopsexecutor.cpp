@@ -70,6 +70,8 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
 
     int succeeded{0};
     int failed{0};
+    TrackList successfulTrackUpdates;
+    successfulTrackUpdates.reserve(m_tracksToUpdate.size());
 
     for(const FileOpsItem& item : m_operations) {
         if(!mayRun()) {
@@ -143,13 +145,20 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
         }
 
         if(ok) {
+            if(item.op == FileOpsOperation::Move || item.op == FileOpsOperation::Rename) {
+                for(const Track& track : m_tracksToUpdate) {
+                    if(track.filepath() == item.destination) {
+                        successfulTrackUpdates.push_back(track);
+                    }
+                }
+            }
             emit operationFinished(item);
         }
     }
 
     // Update library for moved/renamed tracks
-    if(!m_tracksToUpdate.empty()) {
-        m_library->updateTrackMetadata(m_tracksToUpdate);
+    if(!successfulTrackUpdates.empty()) {
+        m_library->updateTrackMetadata(successfulTrackUpdates);
     }
     if(!m_tracksToDelete.empty()) {
         m_library->deleteTracks(m_tracksToDelete);
