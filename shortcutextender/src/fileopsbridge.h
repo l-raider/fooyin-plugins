@@ -35,17 +35,22 @@ namespace Fooyin::ShortcutExtender {
 // Mirrors Fooyin::FileOps::Operation
 enum class FileOpsOperation : uint8_t
 {
-    Copy   = 0,
-    Move   = 1,
-    Rename = 2,
-    Create = 3,
-    Remove = 4,
-    Delete = 5,
+    Copy          = 0,
+    Move          = 1,
+    Rename        = 2,
+    Create        = 3,
+    Remove        = 4,
+    Delete        = 5,
+    Extract       = 6,
+    RemoveArchive = 7,
 };
 
 // Mirrors Fooyin::FileOps::FileOpPreset
 struct FileOpPreset
 {
+    static constexpr quint8 Magic   = 99;
+    static constexpr qint32 Version = 1;
+
     FileOpsOperation op{FileOpsOperation::Copy};
     QString name;
     QString dest;
@@ -53,9 +58,12 @@ struct FileOpPreset
     bool overwrite{false};
     bool wholeDir{false};
     bool removeEmpty{false};
+    bool removeSourceArchive{false};
 
     friend QDataStream& operator<<(QDataStream& stream, const FileOpPreset& preset)
     {
+        stream << Magic;
+        stream << Version;
         stream << preset.op;
         stream << preset.name;
         stream << preset.dest;
@@ -63,18 +71,33 @@ struct FileOpPreset
         stream << preset.overwrite;
         stream << preset.wholeDir;
         stream << preset.removeEmpty;
+        stream << preset.removeSourceArchive;
         return stream;
     }
 
     friend QDataStream& operator>>(QDataStream& stream, FileOpPreset& preset)
     {
-        stream >> preset.op;
+        quint8 opOrMagic{0};
+        stream >> opOrMagic;
+
+        qint32 version{0};
+        if(opOrMagic == Magic) {
+            stream >> version;
+            stream >> preset.op;
+        }
+        else {
+            preset.op = static_cast<FileOpsOperation>(opOrMagic);
+        }
+
         stream >> preset.name;
         stream >> preset.dest;
         stream >> preset.filename;
         stream >> preset.overwrite;
         stream >> preset.wholeDir;
         stream >> preset.removeEmpty;
+        if(version >= 1) {
+            stream >> preset.removeSourceArchive;
+        }
         return stream;
     }
 };
@@ -123,6 +146,10 @@ inline QString operationDisplayName(FileOpsOperation op)
             return QStringLiteral("Remove");
         case FileOpsOperation::Delete:
             return QStringLiteral("Delete");
+        case FileOpsOperation::Extract:
+            return QStringLiteral("Extract");
+        case FileOpsOperation::RemoveArchive:
+            return QStringLiteral("Remove Archive");
     }
     return {};
 }

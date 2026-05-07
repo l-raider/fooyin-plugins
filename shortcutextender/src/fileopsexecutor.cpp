@@ -131,6 +131,8 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                 break;
             }
             case FileOpsOperation::Delete:
+            case FileOpsOperation::Extract:
+            case FileOpsOperation::RemoveArchive:
                 break;
         }
 
