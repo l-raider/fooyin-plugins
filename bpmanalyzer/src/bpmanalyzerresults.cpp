@@ -65,6 +65,7 @@ BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
     , m_doubleBpmButton{new QPushButton(tr("×2 Double BPM"), this)}
     , m_halveBpmButton{new QPushButton(tr("½ Halve BPM"), this)}
     , m_saveButton{new QPushButton(tr("&Save to Tags"), this)}
+    , m_cancelButton{new QPushButton(tr("Cancel"), this)}
     , m_closeButton{new QPushButton(tr("Close"), this)}
 {
     setWindowTitle(tr("BPM Analyzer"));
@@ -87,6 +88,7 @@ BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
     m_doubleBpmButton->setEnabled(false);
     m_halveBpmButton->setEnabled(false);
     m_saveButton->setEnabled(false);
+    m_cancelButton->setEnabled(false);
     m_closeButton->setDefault(true);
 
     m_progressBar->setRange(0, 1);
@@ -102,6 +104,8 @@ BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
                      this, [this]() { scaleSelectedBpm(0.5f); });
     QObject::connect(m_saveButton, &QPushButton::clicked,
                      this, &BpmAnalyzerResults::saveToTags);
+    QObject::connect(m_cancelButton, &QPushButton::clicked,
+                     this, &BpmAnalyzerResults::cancelActive);
     QObject::connect(m_closeButton, &QPushButton::clicked,
                      this, &QDialog::close);
 
@@ -126,6 +130,7 @@ BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
     buttonLayout->addLayout(scaleLayout);
     buttonLayout->addStretch();
     buttonLayout->addWidget(m_saveButton);
+    buttonLayout->addWidget(m_cancelButton);
     buttonLayout->addWidget(m_closeButton);
 
     auto* layout = new QGridLayout(this);
@@ -144,6 +149,7 @@ void BpmAnalyzerResults::startScan()
     m_scanning = true;
     m_analyzeButton->setEnabled(false);
     m_saveButton->setEnabled(false);
+    m_cancelButton->setEnabled(true);
 
     const int total = static_cast<int>(m_tracks.size());
     m_progressBar->setRange(0, total);
@@ -194,6 +200,7 @@ void BpmAnalyzerResults::onScanFinished(const QList<BpmResult>& /*results*/)
     m_status->setText(tr("Time taken") + ": "_L1 + Utils::msToString(elapsed, false));
 
     m_analyzeButton->setEnabled(true);
+    m_cancelButton->setEnabled(false);
     updateButtons();
 }
 
@@ -227,11 +234,16 @@ void BpmAnalyzerResults::saveToTags()
     auto targetPaths = std::make_shared<QSet<QString>>();
     targetPaths->reserve(toSave.size());
 
+    // Map filepath → analyzed BPM so we can refresh m_tracks after the write
+    auto pathToBpm = std::make_shared<QHash<QString, QString>>();
+    pathToBpm->reserve(toSave.size());
+
     TrackList tracks;
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
         result.track.replaceExtraTag(QLatin1String{BpmTagField}, result.analyzedBpm);
         targetPaths->insert(result.track.filepath());
+        pathToBpm->insert(result.track.filepath(), result.analyzedBpm);
         tracks.push_back(result.track);
     }
 
@@ -248,6 +260,7 @@ void BpmAnalyzerResults::saveToTags()
     m_doubleBpmButton->setEnabled(false);
     m_halveBpmButton->setEnabled(false);
     m_saveButton->setEnabled(false);
+    m_cancelButton->setEnabled(true);
 
     auto savedPaths = std::make_shared<QSet<QString>>();
     savedPaths->reserve(total);
@@ -276,20 +289,32 @@ void BpmAnalyzerResults::saveToTags()
 
     auto* writeWatcher = new QFutureWatcher<WriteResult>(this);
     QObject::connect(writeWatcher, &QFutureWatcher<WriteResult>::finished,
-                     this, [this, targetPaths, savedPaths, conn, writeWatcher, total]() {
+                     this, [this, targetPaths, savedPaths, pathToBpm, conn, writeWatcher, total]() {
                          QObject::disconnect(*conn);
 
                          const WriteResult result = writeWatcher->result();
                          writeWatcher->deleteLater();
 
+                         // Helper: update m_tracks for the given set of saved paths so that
+                         // the next Analyze run reads the correct stored BPM from the track.
+                         const auto refreshTracks = [this, &pathToBpm](const QSet<QString>& saved) {
+                             for(Track& track : m_tracks) {
+                                 const auto it = pathToBpm->find(track.filepath());
+                                 if(it != pathToBpm->end() && saved.contains(track.filepath()))
+                                     track.replaceExtraTag(QLatin1String{BpmTagField}, it.value());
+                             }
+                         };
+
                          if(result.failed == 0 && result.state == WriteState::Completed) {
                              m_progressBar->setValue(total);
                              m_resultsModel->markSaved(*targetPaths);
+                             refreshTracks(*targetPaths);
                              m_status->setText(tr("Tags saved."));
                          }
                          else {
                              m_progressBar->setValue(static_cast<int>(savedPaths->size()));
                              m_resultsModel->markSaved(*savedPaths);
+                             refreshTracks(*savedPaths);
                              if(result.state == WriteState::Cancelled) {
                                  m_status->setText(
                                      tr("Tag write cancelled (%1 / %2 saved).")
@@ -307,12 +332,36 @@ void BpmAnalyzerResults::saveToTags()
 
                          m_progressBar->setVisible(false);
                          m_saving = false;
+                         m_writeCancel = nullptr;
+                         m_cancelButton->setEnabled(false);
                          m_analyzeButton->setEnabled(true);
                          updateButtons();
                      });
 
     const WriteRequest request = m_library->writeTrackMetadata(tracks);
+    m_writeCancel = request.cancel;
     writeWatcher->setFuture(request.finished);
+}
+
+void BpmAnalyzerResults::cancelActive()
+{
+    if(m_scanning && m_scanner) {
+        QObject::disconnect(m_scanner, nullptr, this, nullptr);
+        m_scanner->close();
+        m_scanner->deleteLater();
+        m_scanner = nullptr;
+        m_scanning = false;
+        m_progressBar->setVisible(false);
+        m_status->setText(tr("Scan cancelled."));
+        m_analyzeButton->setEnabled(true);
+        m_cancelButton->setEnabled(false);
+        updateButtons();
+    }
+    else if(m_saving && m_writeCancel) {
+        m_writeCancel();
+        m_status->setText(tr("Cancelling…"));
+        m_cancelButton->setEnabled(false);
+    }
 }
 
 void BpmAnalyzerResults::updateButtons()

@@ -62,6 +62,7 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     , m_progressBar{new QProgressBar(this)}
     , m_calcButton{new QPushButton(tr("&Calculate && Verify"), this)}
     , m_saveButton{new QPushButton(tr("&Save to Tags"), this)}
+    , m_cancelButton{new QPushButton(tr("Cancel"), this)}
     , m_closeButton{new QPushButton(tr("Close"), this)}
 {
     setWindowTitle(tr("Audio Checksum"));
@@ -82,6 +83,7 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     m_resultsView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
 
     m_saveButton->setEnabled(false);
+    m_cancelButton->setEnabled(false);
     m_closeButton->setDefault(true);
 
     m_progressBar->setRange(0, 1);
@@ -93,6 +95,8 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
                      [this]() { startScan(); });
     QObject::connect(m_saveButton, &QPushButton::clicked, this,
                      &AudioChecksumResults::saveToTags);
+    QObject::connect(m_cancelButton, &QPushButton::clicked, this,
+                     &AudioChecksumResults::cancelActive);
     QObject::connect(m_closeButton, &QPushButton::clicked, this,
                      &QDialog::close);
 
@@ -102,6 +106,7 @@ AudioChecksumResults::AudioChecksumResults(MusicLibrary* library,
     buttonLayout->addWidget(m_calcButton);
     buttonLayout->addStretch();
     buttonLayout->addWidget(m_saveButton);
+    buttonLayout->addWidget(m_cancelButton);
     buttonLayout->addWidget(m_closeButton);
 
     auto* layout = new QGridLayout(this);
@@ -120,6 +125,7 @@ void AudioChecksumResults::startScan()
     m_scanning = true;
     m_calcButton->setEnabled(false);
     m_saveButton->setEnabled(false);
+    m_cancelButton->setEnabled(true);
 
     const int total = static_cast<int>(m_tracks.size());
     m_progressBar->setRange(0, total);
@@ -170,6 +176,7 @@ void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& /*results
     m_status->setText(tr("Time taken") + ": "_L1 + Utils::msToString(elapsed, false));
 
     m_calcButton->setEnabled(true);
+    m_cancelButton->setEnabled(false);
     updateSaveButton();
 }
 
@@ -204,6 +211,7 @@ void AudioChecksumResults::saveToTags()
     m_status->setText(tr("Writing tags %1 / %2…").arg(0).arg(total));
     m_calcButton->setEnabled(false);
     m_saveButton->setEnabled(false);
+    m_cancelButton->setEnabled(true);
 
     auto savedPaths = std::make_shared<QSet<QString>>();
     savedPaths->reserve(total);
@@ -263,12 +271,36 @@ void AudioChecksumResults::saveToTags()
 
                          m_progressBar->setVisible(false);
                          m_saving = false;
+                         m_writeCancel = nullptr;
+                         m_cancelButton->setEnabled(false);
                          m_calcButton->setEnabled(true);
                          updateSaveButton();
                      });
 
     const WriteRequest request = m_library->writeTrackMetadata(tracks);
+    m_writeCancel = request.cancel;
     writeWatcher->setFuture(request.finished);
+}
+
+void AudioChecksumResults::cancelActive()
+{
+    if(m_scanning && m_scanner) {
+        QObject::disconnect(m_scanner, nullptr, this, nullptr);
+        m_scanner->close();
+        m_scanner->deleteLater();
+        m_scanner = nullptr;
+        m_scanning = false;
+        m_progressBar->setVisible(false);
+        m_status->setText(tr("Scan cancelled."));
+        m_calcButton->setEnabled(true);
+        m_cancelButton->setEnabled(false);
+        updateSaveButton();
+    }
+    else if(m_saving && m_writeCancel) {
+        m_writeCancel();
+        m_status->setText(tr("Cancelling…"));
+        m_cancelButton->setEnabled(false);
+    }
 }
 
 void AudioChecksumResults::updateSaveButton()

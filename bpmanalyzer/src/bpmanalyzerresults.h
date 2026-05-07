@@ -26,6 +26,7 @@
 #include <QList>
 
 #include <chrono>
+#include <functional>
 #include <memory>
 
 class QCloseEvent;
@@ -73,6 +74,7 @@ private:
     void onScanFinished(const QList<BpmResult>& results);
     void scaleSelectedBpm(float factor);
     void saveToTags();
+    void cancelActive();
     void setupContextMenu();
     void updateButtons();
 
@@ -90,7 +92,10 @@ private:
     QPushButton* m_doubleBpmButton;
     QPushButton* m_halveBpmButton;
     QPushButton* m_saveButton;
+    QPushButton* m_cancelButton;
     QPushButton* m_closeButton;
+
+    std::function<void()> m_writeCancel;
 
     std::chrono::steady_clock::time_point m_scanStart;
     bool m_scanning{false};

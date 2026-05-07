@@ -26,6 +26,7 @@
 #include <QList>
 
 #include <chrono>
+#include <functional>
 #include <memory>
 
 class QCloseEvent;
@@ -73,6 +74,7 @@ private:
     void startScan();
     void onScanFinished(const QList<ChecksumResult>& results);
     void saveToTags();
+    void cancelActive();
     void setupContextMenu();
     void updateSaveButton();
 
@@ -88,7 +90,10 @@ private:
     QProgressBar* m_progressBar;
     QPushButton* m_calcButton;
     QPushButton* m_saveButton;
+    QPushButton* m_cancelButton;
     QPushButton* m_closeButton;
+
+    std::function<void()> m_writeCancel;
 
     std::chrono::steady_clock::time_point m_scanStart;
     bool m_scanning{false};
