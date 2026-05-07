@@ -141,6 +141,8 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
             case FileOpsOperation::Delete:
             case FileOpsOperation::Extract:
             case FileOpsOperation::RemoveArchive:
+                qCWarning(FILEOPS_SC) << "Unhandled operation type in execute():" << static_cast<int>(item.op)
+                                      << "- operation" << item.name << "was silently skipped";
                 break;
         }
 
