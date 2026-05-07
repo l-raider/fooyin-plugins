@@ -192,11 +192,16 @@ void AudioChecksumResults::saveToTags()
     auto targetPaths = std::make_shared<QSet<QString>>();
     targetPaths->reserve(toSave.size());
 
+    // Map filepath → computed hash so we can refresh m_tracks after the write
+    auto pathToHash = std::make_shared<QHash<QString, QString>>();
+    pathToHash->reserve(toSave.size());
+
     TrackList tracks;
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
         result.track.replaceExtraTag(tagFieldName(), result.computedHash);
         targetPaths->insert(result.track.filepath());
+        pathToHash->insert(result.track.filepath(), result.computedHash);
         tracks.push_back(result.track);
     }
 
@@ -240,20 +245,33 @@ void AudioChecksumResults::saveToTags()
 
     auto* writeWatcher = new QFutureWatcher<WriteResult>(this);
     QObject::connect(writeWatcher, &QFutureWatcher<WriteResult>::finished,
-                     this, [this, targetPaths, savedPaths, conn, writeWatcher, total]() {
+                     this, [this, targetPaths, savedPaths, pathToHash, conn, writeWatcher, total]() {
                          QObject::disconnect(*conn);
 
                          const WriteResult result = writeWatcher->result();
                          writeWatcher->deleteLater();
 
+                         // Refresh m_tracks so the next Calculate run reads the
+                         // correct stored hash rather than the pre-write value.
+                         const auto refreshTracks = [this, &pathToHash](const QSet<QString>& saved) {
+                             const QString field = tagFieldName();
+                             for(Track& track : m_tracks) {
+                                 const auto it = pathToHash->find(track.filepath());
+                                 if(it != pathToHash->end() && saved.contains(track.filepath()))
+                                     track.replaceExtraTag(field, it.value());
+                             }
+                         };
+
                          if(result.failed == 0 && result.state == WriteState::Completed) {
                              m_progressBar->setValue(total);
                              m_resultsModel->markSaved(*targetPaths);
+                             refreshTracks(*targetPaths);
                              m_status->setText(tr("Tags saved."));
                          }
                          else {
                              m_progressBar->setValue(static_cast<int>(savedPaths->size()));
                              m_resultsModel->markSaved(*savedPaths);
+                             refreshTracks(*savedPaths);
                              if(result.state == WriteState::Cancelled) {
                                  m_status->setText(
                                      tr("Tag write cancelled (%1 / %2 saved).")
