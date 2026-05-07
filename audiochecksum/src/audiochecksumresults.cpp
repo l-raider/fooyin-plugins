@@ -213,7 +213,7 @@ void AudioChecksumResults::saveToTags()
     m_progressBar->setRange(0, total);
     m_progressBar->setValue(0);
     m_progressBar->setVisible(true);
-    m_status->setText(tr("Writing tags %1 / %2…").arg(0).arg(total));
+    m_status->setText(tr("Preparing to write %1 tag(s)…").arg(total));
     m_calcButton->setEnabled(false);
     m_saveButton->setEnabled(false);
     m_cancelButton->setEnabled(true);
