@@ -42,3 +42,12 @@
 
 # Plugin build directories
 **/build/
+.vscode/mcp.json
+.lean-ctx/graph.db-wal
+.lean-ctx/graph.db-shm
+.lean-ctx/graph.db
+.github/hooks/hooks.json
+.github/mcp.json
+LEAN-CTX.md
+AGENTS.md
+.lean-ctx/graph.meta.json

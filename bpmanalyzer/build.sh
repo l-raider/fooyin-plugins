@@ -29,7 +29,7 @@ FOOYIN_PREFIX=""
 DO_INSTALL=false
 DO_INSTALL_FLATPAK=false
 # Build directory used when building fooyin from the submodule
-FOOYIN_SUBMODULE_BUILD="${REPO_ROOT}/fooyin/build"
+FOOYIN_SUBMODULE_BUILD="${REPO_ROOT}/../fooyin/build"
 
 # ---- Argument parsing ----
 while [[ $# -gt 0 ]]; do
@@ -80,7 +80,7 @@ if [[ -n "${FOOYIN_PREFIX}" ]]; then
     CMAKE_EXTRA_ARGS+=("-DCMAKE_PREFIX_PATH=${FOOYIN_PREFIX}")
 else
     # 1. Try building from the fooyin submodule if present
-    FOOYIN_SUBMODULE="${REPO_ROOT}/fooyin"
+    FOOYIN_SUBMODULE="${REPO_ROOT}/../fooyin"
     if [[ -f "${FOOYIN_SUBMODULE}/CMakeLists.txt" ]]; then
         echo "Found fooyin submodule at: ${FOOYIN_SUBMODULE}"
         if [[ ! -f "${FOOYIN_SUBMODULE_BUILD}/FooyinConfig.cmake" ]] && \
