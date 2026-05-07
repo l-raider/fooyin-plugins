@@ -155,6 +155,9 @@ void DeleteCurrentlyPlaying::onTriggered()
         QObject::connect(worker, &DeleteWorker::trashError, this, [](const QString& message) {
             QMessageBox::warning(Utils::getMainWindow(), tr("Move to Trash Failed"), message);
         });
+        QObject::connect(worker, &DeleteWorker::deleteError, this, [](const QString& message) {
+            QMessageBox::warning(Utils::getMainWindow(), tr("Delete Failed"), message);
+        });
         QObject::connect(worker, &Worker::finished, thread, &QThread::quit);
         QObject::connect(thread, &QThread::finished, worker, &QObject::deleteLater);
         QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);

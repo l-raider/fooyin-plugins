@@ -40,6 +40,7 @@ public:
 
 signals:
     void deleteFinished(const Fooyin::TrackList& deletedTracks);
+    void deleteError(const QString& message);
     void trashError(const QString& message);
 
 private:

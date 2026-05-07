@@ -200,7 +200,9 @@ void DeleteWorker::deleteFiles()
                 qCInfo(SHORTCUTEXT) << "Permanently deleted:" << filepath;
             }
             else {
+                const QString msg = tr("Failed to permanently delete:\n%1").arg(filepath);
                 qCCritical(SHORTCUTEXT) << "Failed to permanently delete:" << filepath;
+                emit deleteError(msg);
             }
         }
 
