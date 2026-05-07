@@ -22,6 +22,7 @@
 #include "deletedialog.h"
 #include "deleteworker.h"
 #include "shortcutextenderdefs.h"
+#include "xdgutils_p.h"
 
 #include <core/library/musiclibrary.h>
 #include <core/player/playercontroller.h>
@@ -35,20 +36,9 @@
 #include <QFileInfo>
 #include <QMainWindow>
 #include <QMessageBox>
-#include <QStandardPaths>
 #include <QThread>
 
 using namespace Qt::StringLiterals;
-
-namespace {
-QString xdgDataHome()
-{
-    if(qEnvironmentVariableIsSet("FLATPAK_ID")) {
-        return QDir::homePath() + u"/.local/share"_s;
-    }
-    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-}
-} // namespace
 
 namespace Fooyin::ShortcutExtender {
 

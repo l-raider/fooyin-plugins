@@ -18,6 +18,7 @@
  */
 
 #include "deleteworker.h"
+#include "xdgutils_p.h"
 
 #include <core/library/musiclibrary.h>
 
@@ -27,7 +28,6 @@
 #include <QFileInfo>
 #include <QLoggingCategory>
 #include <QSaveFile>
-#include <QStandardPaths>
 #include <QUrl>
 
 Q_LOGGING_CATEGORY(SHORTCUTEXT, "fy.shortcutextender")
@@ -54,21 +54,6 @@ DeleteWorker::DeleteWorker(MusicLibrary* library, TrackList tracks, DeleteMode m
 //
 // If the rename fails (source is on a different filesystem than $HOME),
 // fall back to QFile::moveToTrash() which handles cross-device moves.
-//
-// Flatpak note: inside a Flatpak sandbox QStandardPaths::GenericDataLocation
-// resolves to the app-private container (~/.var/app/<id>/data) rather than the
-// real ~/.local/share.  Files trashed there are invisible to the host desktop
-// and cannot be restored through any file manager.  We detect the sandbox via
-// the FLATPAK_ID environment variable and, since fooyin's manifest grants the
-// 'home' filesystem permission, use $HOME/.local/share directly so that trashed
-// files end up in the host user's trash.
-static QString xdgDataHome()
-{
-    if(qEnvironmentVariableIsSet("FLATPAK_ID")) {
-        return QDir::homePath() + u"/.local/share"_s;
-    }
-    return QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-}
 
 bool DeleteWorker::moveToXdgTrash(const QString& filepath)
 {
