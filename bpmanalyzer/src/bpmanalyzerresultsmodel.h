@@ -64,8 +64,7 @@ public:
 
     /*!
      * Returns results that should be written to tags:
-     *   - Status::New     → fresh analysis, no existing tag
-     *   - Status::Updated → existing tag will be overwritten
+        *   - Status::New/Updated rows whose analyzed BPM differs from the stored BPM
      * Skipped and Error rows are excluded.
      */
     [[nodiscard]] QList<BpmResult> resultsToSave() const;

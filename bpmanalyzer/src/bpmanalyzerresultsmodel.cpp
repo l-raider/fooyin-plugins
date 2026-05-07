@@ -180,10 +180,12 @@ QList<BpmResult> BpmAnalyzerResultsModel::resultsToSave() const
 {
     QList<BpmResult> toSave;
     for(const auto& result : m_results) {
-        if(result.status == BpmResult::Status::New
-           || result.status == BpmResult::Status::Updated) {
-            toSave.append(result);
-        }
+        if(result.status != BpmResult::Status::New
+           && result.status != BpmResult::Status::Updated)
+            continue;
+        if(result.analyzedBpm.isEmpty() || result.analyzedBpm == result.storedBpm)
+            continue;
+        toSave.append(result);
     }
     return toSave;
 }
