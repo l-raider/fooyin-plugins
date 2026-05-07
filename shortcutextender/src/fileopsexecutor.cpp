@@ -84,6 +84,9 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                     qCWarning(FILEOPS_SC) << "Failed to create directory" << item.destination;
                     ++failed;
                 }
+                else {
+                    ++succeeded;
+                }
                 break;
             }
             case FileOpsOperation::Remove: {
@@ -94,6 +97,9 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
                 if(!ok) {
                     qCWarning(FILEOPS_SC) << "Failed to remove directory" << item.source;
                     ++failed;
+                }
+                else {
+                    ++succeeded;
                 }
                 break;
             }
