@@ -233,14 +233,19 @@ void FileOpsExecutor::processMove(const FileOpPreset& preset)
                 m_operations.push_back({FileOpsOperation::Create, {}, {}, parentPath});
 
                 if(trackPaths.contains(file)) {
-                    const Track& fileTrack = trackPaths.equal_range(file).first->second;
+                    const auto range    = trackPaths.equal_range(file);
+                    const Track& fileTrack = range.first->second;
                     const QString fileDest = QDir::cleanPath(evaluatePath(pathTemplate, fileTrack));
                     m_operations.push_back({FileOpsOperation::Move, fileTrack.filenameExt(),
                                             fileTrack.filepath(), fileDest});
-                    // Track library update
-                    Track updated = fileTrack;
-                    updated.setFilePath(fileDest);
-                    m_tracksToUpdate.push_back(updated);
+                    // Update ALL library tracks pointing to this file, not just
+                    // the first one, so that multi-track files (e.g. CUE-indexed)
+                    // have every virtual track's path updated after the move.
+                    for(auto it = range.first; it != range.second; ++it) {
+                        Track updated = it->second;
+                        updated.setFilePath(fileDest);
+                        m_tracksToUpdate.push_back(updated);
+                    }
                 }
                 else {
                     const QFileInfo info{file};
