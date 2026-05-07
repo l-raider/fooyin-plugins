@@ -181,10 +181,15 @@ const QList<ChecksumResult>& AudioChecksumResultsModel::results() const
     return m_results;
 }
 
-void AudioChecksumResultsModel::markSaved()
+void AudioChecksumResultsModel::markSaved(const QSet<QString>& filepaths)
 {
+    if(filepaths.isEmpty())
+        return;
+
     for(qsizetype i{0}; i < m_results.size(); ++i) {
         auto& result = m_results[i];
+        if(!filepaths.contains(result.track.filepath()))
+            continue;
         if(result.status != ChecksumResult::Status::New
            && result.status != ChecksumResult::Status::Mismatch)
             continue;

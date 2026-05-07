@@ -30,6 +30,7 @@
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QFileInfo>
+#include <QFutureWatcher>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -109,8 +110,8 @@ BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
                      &QItemSelectionModel::selectionChanged,
                      this, [this]() {
                          const bool has = m_resultsView->selectionModel()->hasSelection();
-                         m_doubleBpmButton->setEnabled(has);
-                         m_halveBpmButton->setEnabled(has);
+                         m_doubleBpmButton->setEnabled(has && !m_saving);
+                         m_halveBpmButton->setEnabled(has && !m_saving);
                      });
 
     setupContextMenu();
@@ -137,7 +138,7 @@ BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
 
 void BpmAnalyzerResults::startScan()
 {
-    if(m_scanning)
+    if(m_scanning || m_saving)
         return;
 
     m_scanning = true;
@@ -216,56 +217,110 @@ void BpmAnalyzerResults::scaleSelectedBpm(float factor)
 
 void BpmAnalyzerResults::saveToTags()
 {
+    if(m_saving)
+        return;
+
     QList<BpmResult> toSave = m_resultsModel->resultsToSave();
     if(toSave.isEmpty())
         return;
 
-    QSet<QString> writtenPaths;
-    writtenPaths.reserve(toSave.size());
+    auto targetPaths = std::make_shared<QSet<QString>>();
+    targetPaths->reserve(toSave.size());
 
     TrackList tracks;
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
         result.track.replaceExtraTag(QLatin1String{BpmTagField}, result.analyzedBpm);
-        writtenPaths.insert(result.track.filepath());
+        targetPaths->insert(result.track.filepath());
         tracks.push_back(result.track);
     }
 
-    m_status->setText(tr("Writing to file tags…"));
+    const int total = static_cast<int>(targetPaths->size());
+    if(total <= 0)
+        return;
+
+    m_saving = true;
+    m_progressBar->setRange(0, total);
+    m_progressBar->setValue(0);
+    m_progressBar->setVisible(true);
+    m_status->setText(tr("Writing tags %1 / %2…").arg(0).arg(total));
+    m_analyzeButton->setEnabled(false);
     m_doubleBpmButton->setEnabled(false);
     m_halveBpmButton->setEnabled(false);
     m_saveButton->setEnabled(false);
 
-    // Use a regular (non-single-shot) connection so that spurious
-    // tracksMetadataChanged emissions from unrelated library writes don't
-    // consume the connection before our write has actually completed.
-    // We disconnect manually once we see at least one of our own paths.
+    auto savedPaths = std::make_shared<QSet<QString>>();
+    savedPaths->reserve(total);
+
     auto conn = std::make_shared<QMetaObject::Connection>();
     *conn = QObject::connect(
         m_library, &MusicLibrary::tracksMetadataChanged,
-        this, [this, writtenPaths, conn](const TrackList& changed) {
-            const bool ours = std::any_of(
-                changed.cbegin(), changed.cend(),
-                [&writtenPaths](const Track& t) {
-                    return writtenPaths.contains(t.filepath());
-                });
-            if(!ours)
+        this, [this, targetPaths, savedPaths, total](const TrackList& changed) {
+            bool updated = false;
+            for(const Track& track : changed) {
+                const QString path = track.filepath();
+                if(!targetPaths->contains(path) || savedPaths->contains(path))
+                    continue;
+                savedPaths->insert(path);
+                updated = true;
+            }
+            if(!updated)
                 return;
-            QObject::disconnect(*conn);
-            m_resultsModel->markSaved();
-            m_status->setText(tr("Tags saved."));
-            updateButtons();
+
+            m_progressBar->setValue(static_cast<int>(savedPaths->size()));
+            m_status->setText(
+                tr("Writing tags %1 / %2…")
+                    .arg(static_cast<int>(savedPaths->size()))
+                    .arg(total));
         });
 
-    m_library->writeTrackMetadata(tracks);
+    auto* writeWatcher = new QFutureWatcher<WriteResult>(this);
+    QObject::connect(writeWatcher, &QFutureWatcher<WriteResult>::finished,
+                     this, [this, targetPaths, savedPaths, conn, writeWatcher, total]() {
+                         QObject::disconnect(*conn);
+
+                         const WriteResult result = writeWatcher->result();
+                         writeWatcher->deleteLater();
+
+                         if(result.failed == 0 && result.state == WriteState::Completed) {
+                             m_progressBar->setValue(total);
+                             m_resultsModel->markSaved(*targetPaths);
+                             m_status->setText(tr("Tags saved."));
+                         }
+                         else {
+                             m_progressBar->setValue(static_cast<int>(savedPaths->size()));
+                             m_resultsModel->markSaved(*savedPaths);
+                             if(result.state == WriteState::Cancelled) {
+                                 m_status->setText(
+                                     tr("Tag write cancelled (%1 / %2 saved).")
+                                         .arg(static_cast<int>(savedPaths->size()))
+                                         .arg(total));
+                             }
+                             else {
+                                 m_status->setText(
+                                     tr("Saved %1 / %2 tag(s); %3 failed.")
+                                         .arg(result.succeeded)
+                                         .arg(total)
+                                         .arg(result.failed));
+                             }
+                         }
+
+                         m_progressBar->setVisible(false);
+                         m_saving = false;
+                         m_analyzeButton->setEnabled(true);
+                         updateButtons();
+                     });
+
+    const WriteRequest request = m_library->writeTrackMetadata(tracks);
+    writeWatcher->setFuture(request.finished);
 }
 
 void BpmAnalyzerResults::updateButtons()
 {
-    m_saveButton->setEnabled(!m_resultsModel->resultsToSave().isEmpty());
+    m_saveButton->setEnabled(!m_saving && !m_resultsModel->resultsToSave().isEmpty());
     const bool hasSelection = m_resultsView->selectionModel()->hasSelection();
-    m_doubleBpmButton->setEnabled(hasSelection);
-    m_halveBpmButton->setEnabled(hasSelection);
+    m_doubleBpmButton->setEnabled(!m_saving && hasSelection);
+    m_halveBpmButton->setEnabled(!m_saving && hasSelection);
 }
 
 void BpmAnalyzerResults::closeEvent(QCloseEvent* event)

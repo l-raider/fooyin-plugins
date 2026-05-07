@@ -190,10 +190,15 @@ QList<BpmResult> BpmAnalyzerResultsModel::resultsToSave() const
     return toSave;
 }
 
-void BpmAnalyzerResultsModel::markSaved()
+void BpmAnalyzerResultsModel::markSaved(const QSet<QString>& filepaths)
 {
+    if(filepaths.isEmpty())
+        return;
+
     for(qsizetype i{0}; i < m_results.size(); ++i) {
         auto& result = m_results[i];
+        if(!filepaths.contains(result.track.filepath()))
+            continue;
         if(result.status == BpmResult::Status::New
            || result.status == BpmResult::Status::Updated) {
             result.storedBpm = result.analyzedBpm;

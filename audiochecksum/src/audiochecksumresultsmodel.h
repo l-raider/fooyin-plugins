@@ -22,6 +22,7 @@
 
 #include <QAbstractTableModel>
 #include <QList>
+#include <QSet>
 
 namespace Fooyin::AudioChecksum {
 
@@ -66,8 +67,8 @@ public:
      */
     [[nodiscard]] QList<ChecksumResult> resultsToSave() const;
 
-    /*! Mark all New/Mismatch results as Match after tags have been written. */
-    void markSaved();
+    /*! Mark the saved New/Mismatch results as Match after tags have been written. */
+    void markSaved(const QSet<QString>& filepaths);
 
     [[nodiscard]] const QList<ChecksumResult>& results() const;
 

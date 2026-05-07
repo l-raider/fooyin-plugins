@@ -26,6 +26,7 @@
 #include <core/plugins/coreplugincontext.h>
 #include <gui/guiconstants.h>
 #include <gui/plugins/guiplugincontext.h>
+#include <gui/plugins/pluginsettingsprovider.h>
 #include <gui/trackselectioncontroller.h>
 #include <utils/utils.h>
 
@@ -34,6 +35,21 @@
 #include <QMenu>
 
 using namespace Qt::StringLiterals;
+
+namespace {
+
+class AudioChecksumSettingsProvider : public Fooyin::PluginSettingsProvider
+{
+public:
+    void showSettings(QWidget* parent) override
+    {
+        auto* dlg = new Fooyin::AudioChecksum::AudioChecksumSettingsDialog(parent);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+    }
+};
+
+} // namespace
 
 namespace Fooyin::AudioChecksum {
 
@@ -76,16 +92,9 @@ void AudioChecksumPlugin::setupContextMenu()
         });
 }
 
-bool AudioChecksumPlugin::hasSettings() const
+std::unique_ptr<PluginSettingsProvider> AudioChecksumPlugin::settingsProvider() const
 {
-    return true;
-}
-
-void AudioChecksumPlugin::showSettings(QWidget* parent)
-{
-    auto* dlg = new AudioChecksumSettingsDialog(parent);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->show();
+    return std::make_unique<AudioChecksumSettingsProvider>();
 }
 
 } // namespace Fooyin::AudioChecksum

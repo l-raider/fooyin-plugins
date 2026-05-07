@@ -22,6 +22,7 @@
 
 #include <QAbstractTableModel>
 #include <QList>
+#include <QSet>
 
 namespace Fooyin::BpmAnalyzer {
 
@@ -69,8 +70,8 @@ public:
      */
     [[nodiscard]] QList<BpmResult> resultsToSave() const;
 
-    /*! Transition New/Updated rows to Updated (storedBpm ← analyzedBpm) after save. */
-    void markSaved();
+    /*! Transition the saved rows to Updated (storedBpm ← analyzedBpm) after save. */
+    void markSaved(const QSet<QString>& filepaths);
 
     [[nodiscard]] const QList<BpmResult>& results() const;
 

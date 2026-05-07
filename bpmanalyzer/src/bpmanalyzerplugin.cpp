@@ -26,12 +26,28 @@
 #include <core/plugins/coreplugincontext.h>
 #include <gui/guiconstants.h>
 #include <gui/plugins/guiplugincontext.h>
+#include <gui/plugins/pluginsettingsprovider.h>
 #include <gui/trackselectioncontroller.h>
 #include <utils/utils.h>
 
 #include <QAction>
 #include <QMainWindow>
 #include <QMenu>
+
+namespace {
+
+class BpmAnalyzerSettingsProvider : public Fooyin::PluginSettingsProvider
+{
+public:
+    void showSettings(QWidget* parent) override
+    {
+        auto* dlg = new Fooyin::BpmAnalyzer::BpmAnalyzerSettingsDialog(parent);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->show();
+    }
+};
+
+} // namespace
 
 namespace Fooyin::BpmAnalyzer {
 
@@ -74,16 +90,9 @@ void BpmAnalyzerPlugin::setupContextMenu()
         });
 }
 
-bool BpmAnalyzerPlugin::hasSettings() const
+std::unique_ptr<PluginSettingsProvider> BpmAnalyzerPlugin::settingsProvider() const
 {
-    return true;
-}
-
-void BpmAnalyzerPlugin::showSettings(QWidget* parent)
-{
-    auto* dlg = new BpmAnalyzerSettingsDialog(parent);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->show();
+    return std::make_unique<BpmAnalyzerSettingsProvider>();
 }
 
 } // namespace Fooyin::BpmAnalyzer

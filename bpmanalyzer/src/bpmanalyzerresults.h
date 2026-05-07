@@ -94,6 +94,7 @@ private:
 
     std::chrono::steady_clock::time_point m_scanStart;
     bool m_scanning{false};
+    bool m_saving{false};
 };
 
 } // namespace Fooyin::BpmAnalyzer
