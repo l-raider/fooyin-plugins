@@ -341,6 +341,13 @@ void FileOpsExecutor::processRename(const FileOpPreset& preset)
 
     std::set<QString> processed;
 
+    // Build a filepath→track map from the full library so that all virtual
+    // tracks pointing to the same file (e.g. CUE-indexed) are updated.
+    std::unordered_multimap<QString, Track> trackPaths;
+    for(const Track& t : m_library->tracks()) {
+        trackPaths.emplace(t.filepath(), t);
+    }
+
     for(const Track& track : m_tracks) {
         if(processed.contains(track.filepath())) {
             continue;
@@ -362,10 +369,24 @@ void FileOpsExecutor::processRename(const FileOpPreset& preset)
         const QString destFilepath = QDir::cleanPath(track.path() + u"/"_s + destFilename);
         m_operations.push_back({FileOpsOperation::Rename, track.filenameExt(), track.filepath(), destFilepath});
 
-        // Schedule the renamed path for library update
-        Track updated = track;
-        updated.setFilePath(destFilepath);
-        m_tracksToUpdate.push_back(updated);
+        // Schedule ALL library tracks pointing to this file for path update,
+        // not just the one track that happened to be in the selection.
+        // This is necessary for multi-track files (e.g. CUE-indexed FLAC) where
+        // multiple library entries share the same filepath.
+        const auto range = trackPaths.equal_range(track.filepath());
+        if(range.first != range.second) {
+            for(auto it = range.first; it != range.second; ++it) {
+                Track updated = it->second;
+                updated.setFilePath(destFilepath);
+                m_tracksToUpdate.push_back(updated);
+            }
+        }
+        else {
+            // Fallback: file not found in library (edge case), use selection track.
+            Track updated = track;
+            updated.setFilePath(destFilepath);
+            m_tracksToUpdate.push_back(updated);
+        }
     }
 }
 
