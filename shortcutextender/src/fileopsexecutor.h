@@ -54,11 +54,11 @@ public:
     FileOpsExecutor(MusicLibrary* library, TrackList tracks, QObject* parent = nullptr);
 
     // Produces (source, destination) pairs without touching the filesystem.
-    // Call from any thread; result is returned synchronously.
+    // Call before moving the executor to a worker thread; copy/move presets
+    // read the library track list while building the operation plan.
     [[nodiscard]] std::vector<FileOpsItem> simulate(const FileOpPreset& preset);
 
-    // Executes the operations previously built by simulate(), or builds and
-    // executes in one step if simulate() was not called separately.
+    // Executes the operations previously built by simulate().
     // Must be invoked on the worker's thread (via QMetaObject::invokeMethod or
     // a queued connection after moving the object to a QThread).
     void execute(const FileOpPreset& preset);
@@ -84,6 +84,7 @@ private:
     std::vector<FileOpsItem> m_operations;
     TrackList                m_tracksToUpdate;
     TrackList                m_tracksToDelete;
+    bool                     m_operationsBuilt{false};
 };
 
 } // namespace ShortcutExtender

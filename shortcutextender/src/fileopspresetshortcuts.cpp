@@ -157,9 +157,14 @@ FileOpsPresetShortcuts::FileOpsPresetShortcuts(ActionManager*            actionM
                                  // worker thread never calls m_library->tracks() — which
                                  // reads p->m_tracks without a mutex and would race with
                                  // main-thread library mutations (scans, metadata writes).
-                                 // simulate() populates m_operations; execute() skips
-                                 // buildOperations() when m_operations is already non-empty.
-                                 executor->simulate(preset);
+                                 // simulate() populates m_operations; execute() consumes only
+                                 // that precomputed plan on the worker thread.
+                                 const auto ops = executor->simulate(preset);
+                                 if(ops.empty()) {
+                                     delete executor;
+                                     thread->deleteLater();
+                                     return;
+                                 }
 
                                  executor->moveToThread(thread);
                                  QObject::connect(thread, &QThread::started, executor,

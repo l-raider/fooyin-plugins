@@ -52,6 +52,7 @@ std::vector<FileOpsItem> FileOpsExecutor::simulate(const FileOpPreset& preset)
     m_tracksToUpdate.clear();
     m_tracksToDelete.clear();
     buildOperations(preset);
+    m_operationsBuilt = true;
     return m_operations;
 }
 
@@ -59,8 +60,12 @@ void FileOpsExecutor::execute(const FileOpPreset& preset)
 {
     setState(Running);
 
-    if(m_operations.empty()) {
-        buildOperations(preset);
+    if(!m_operationsBuilt) {
+        qCWarning(FILEOPS_SC) << "File operations executor started without a precomputed operation plan";
+        setState(Idle);
+        emit finished(0, 0);
+        emit Worker::finished();
+        return;
     }
 
     int succeeded{0};
