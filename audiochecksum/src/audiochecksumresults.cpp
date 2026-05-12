@@ -192,7 +192,8 @@ void AudioChecksumResults::saveToTags()
     auto targetPaths = std::make_shared<QSet<QString>>();
     targetPaths->reserve(toSave.size());
 
-    // Map filepath → computed hash so we can refresh m_tracks after the write
+    // Map segment-aware track identity → computed hash so chapter tracks from the
+    // same container file are tracked independently.
     auto pathToHash = std::make_shared<QHash<QString, QString>>();
     pathToHash->reserve(toSave.size());
 
@@ -200,8 +201,9 @@ void AudioChecksumResults::saveToTags()
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
         result.track.replaceExtraTag(tagFieldName(), result.computedHash);
-        targetPaths->insert(result.track.filepath());
-        pathToHash->insert(result.track.filepath(), result.computedHash);
+        const QString trackKey = result.track.uniqueFilepath();
+        targetPaths->insert(trackKey);
+        pathToHash->insert(trackKey, result.computedHash);
         tracks.push_back(result.track);
     }
 
@@ -227,7 +229,7 @@ void AudioChecksumResults::saveToTags()
         this, [this, targetPaths, savedPaths, total](const TrackList& changed) {
             bool updated = false;
             for(const Track& track : changed) {
-                const QString path = track.filepath();
+                const QString path = track.uniqueFilepath();
                 if(!targetPaths->contains(path) || savedPaths->contains(path))
                     continue;
                 savedPaths->insert(path);
@@ -256,8 +258,9 @@ void AudioChecksumResults::saveToTags()
                          const auto refreshTracks = [this, &pathToHash](const QSet<QString>& saved) {
                              const QString field = tagFieldName();
                              for(Track& track : m_tracks) {
-                                 const auto it = pathToHash->find(track.filepath());
-                                 if(it != pathToHash->end() && saved.contains(track.filepath()))
+                                  const QString trackKey = track.uniqueFilepath();
+                                  const auto it = pathToHash->find(trackKey);
+                                  if(it != pathToHash->end() && saved.contains(trackKey))
                                      track.replaceExtraTag(field, it.value());
                              }
                          };

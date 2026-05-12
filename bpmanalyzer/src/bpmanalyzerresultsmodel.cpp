@@ -197,7 +197,7 @@ void BpmAnalyzerResultsModel::markSaved(const QSet<QString>& filepaths)
 
     for(qsizetype i{0}; i < m_results.size(); ++i) {
         auto& result = m_results[i];
-        if(!filepaths.contains(result.track.filepath()))
+        if(!filepaths.contains(result.track.uniqueFilepath()))
             continue;
         if(result.status == BpmResult::Status::New
            || result.status == BpmResult::Status::Updated) {

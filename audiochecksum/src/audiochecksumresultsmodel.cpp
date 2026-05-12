@@ -188,7 +188,7 @@ void AudioChecksumResultsModel::markSaved(const QSet<QString>& filepaths)
 
     for(qsizetype i{0}; i < m_results.size(); ++i) {
         auto& result = m_results[i];
-        if(!filepaths.contains(result.track.filepath()))
+        if(!filepaths.contains(result.track.uniqueFilepath()))
             continue;
         if(result.status != ChecksumResult::Status::New
            && result.status != ChecksumResult::Status::Mismatch)

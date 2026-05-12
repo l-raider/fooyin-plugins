@@ -234,7 +234,8 @@ void BpmAnalyzerResults::saveToTags()
     auto targetPaths = std::make_shared<QSet<QString>>();
     targetPaths->reserve(toSave.size());
 
-    // Map filepath → analyzed BPM so we can refresh m_tracks after the write
+    // Map segment-aware track identity → analyzed BPM so chapter tracks from the
+    // same container file are tracked independently.
     auto pathToBpm = std::make_shared<QHash<QString, QString>>();
     pathToBpm->reserve(toSave.size());
 
@@ -242,8 +243,9 @@ void BpmAnalyzerResults::saveToTags()
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
         result.track.replaceExtraTag(QLatin1String{BpmTagField}, result.analyzedBpm);
-        targetPaths->insert(result.track.filepath());
-        pathToBpm->insert(result.track.filepath(), result.analyzedBpm);
+        const QString trackKey = result.track.uniqueFilepath();
+        targetPaths->insert(trackKey);
+        pathToBpm->insert(trackKey, result.analyzedBpm);
         tracks.push_back(result.track);
     }
 
@@ -271,7 +273,7 @@ void BpmAnalyzerResults::saveToTags()
         this, [this, targetPaths, savedPaths, total](const TrackList& changed) {
             bool updated = false;
             for(const Track& track : changed) {
-                const QString path = track.filepath();
+                const QString path = track.uniqueFilepath();
                 if(!targetPaths->contains(path) || savedPaths->contains(path))
                     continue;
                 savedPaths->insert(path);
@@ -299,8 +301,9 @@ void BpmAnalyzerResults::saveToTags()
                          // the next Analyze run reads the correct stored BPM from the track.
                          const auto refreshTracks = [this, &pathToBpm](const QSet<QString>& saved) {
                              for(Track& track : m_tracks) {
-                                 const auto it = pathToBpm->find(track.filepath());
-                                 if(it != pathToBpm->end() && saved.contains(track.filepath()))
+                                  const QString trackKey = track.uniqueFilepath();
+                                  const auto it = pathToBpm->find(trackKey);
+                                  if(it != pathToBpm->end() && saved.contains(trackKey))
                                      track.replaceExtraTag(QLatin1String{BpmTagField}, it.value());
                              }
                          };
