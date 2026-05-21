@@ -1,6 +1,6 @@
 {
     "Name": "BPM Analyzer",
-    "Version": "@PROJECT_VERSION@",
+    "Version": "@Fooyin_VERSION@",
     "Author": "l-raider",
     "Copyright": "",
     "License": ["GPL v3"],
