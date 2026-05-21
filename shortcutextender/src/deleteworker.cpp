@@ -195,7 +195,15 @@ void DeleteWorker::deleteFiles()
             continue;
         }
 
-        deleted.push_back(track);
+        // Append every Track entry whose filepath matches the one we just
+        // deleted so that multi-indexed files (e.g. CUE chapter tracks)
+        // have every virtual library entry removed, not just the first one
+        // we happened to encounter for this filepath.
+        for(const Track& t : m_tracks) {
+            if(t.filepath() == filepath) {
+                deleted.push_back(t);
+            }
+        }
     }
 
     if(!deleted.empty()) {
