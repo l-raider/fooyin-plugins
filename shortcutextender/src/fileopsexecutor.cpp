@@ -241,13 +241,18 @@ void FileOpsExecutor::processMove(const FileOpPreset& preset)
                 const QString fileDestPath = QDir::cleanPath(destPath + u"/"_s + relativePath);
                 const QString parentPath   = QFileInfo{fileDestPath}.absolutePath();
 
-                // Ensure destination directory exists in operations
-                m_operations.push_back({FileOpsOperation::Create, {}, {}, parentPath});
-
                 if(trackPaths.contains(file)) {
                     const auto range    = trackPaths.equal_range(file);
                     const Track& fileTrack = range.first->second;
                     const QString fileDest = QDir::cleanPath(evaluatePath(pathTemplate, fileTrack));
+                    // For tracks the move target is metadata-driven (fileDest),
+                    // not relativePath-driven (fileDestPath); these can differ
+                    // when the path template reorganises tracks by tag. Ensure
+                    // the actual parent of fileDest exists before the Move,
+                    // otherwise the Move silently fails because the directory
+                    // implied by relativePath was never created.
+                    const QString trackParent = QFileInfo{fileDest}.absolutePath();
+                    m_operations.push_back({FileOpsOperation::Create, {}, {}, trackParent});
                     m_operations.push_back({FileOpsOperation::Move, fileTrack.filenameExt(),
                                             fileTrack.filepath(), fileDest});
                     // Update ALL library tracks pointing to this file, not just
@@ -261,6 +266,7 @@ void FileOpsExecutor::processMove(const FileOpPreset& preset)
                 }
                 else {
                     const QFileInfo info{file};
+                    m_operations.push_back({FileOpsOperation::Create, {}, {}, parentPath});
                     m_operations.push_back({FileOpsOperation::Move, info.fileName(), file, fileDestPath});
                 }
             }
