@@ -22,6 +22,7 @@
 
 #include <core/coresettings.h>
 #include <core/engine/audiobuffer.h>
+#include <core/engine/audioconverter.h>
 #include <core/engine/audioformat.h>
 #include <core/engine/audioloader.h>
 #include <core/engine/audioinput.h>
@@ -36,246 +37,48 @@
 #include <optional>
 #include <vector>
 
-extern "C"
-{
-#include <libavcodec/version.h>
-#include <libavutil/channel_layout.h>
-#include <libavutil/mathematics.h>
-#include <libswresample/swresample.h>
-}
-
 using namespace Qt::StringLiterals;
-
-#define OLD_CHANNEL_LAYOUT (LIBAVCODEC_VERSION_INT < AV_VERSION_INT(59, 24, 100))
 
 namespace Fooyin::BpmAnalyzer {
 
 namespace {
 
 // ---------------------------------------------------------------------------
-// SoundTouch SAMPLETYPE detection
-// BPMDetect::inputSamples expects either short (integer build) or float
-// (float build, default). We pick the matching AV_SAMPLE_FMT at compile time.
+// SoundTouch sample type
+// BPMDetect::inputSamples expects interleaved samples of SoundTouch's
+// SAMPLETYPE: float with the default float build, 16-bit signed when built
+// with SOUNDTOUCH_INTEGER_SAMPLES. We match that at compile time.
 // ---------------------------------------------------------------------------
 #ifdef SOUNDTOUCH_INTEGER_SAMPLES
-constexpr AVSampleFormat kSoundTouchAvFmt = AV_SAMPLE_FMT_S16;
+constexpr SampleFormat kSoundTouchSampleFormat = SampleFormat::S16;
 using SoundTouchSample = short;
 #else
-constexpr AVSampleFormat kSoundTouchAvFmt = AV_SAMPLE_FMT_FLT;
+constexpr SampleFormat kSoundTouchSampleFormat = SampleFormat::F32;
 using SoundTouchSample = float;
 #endif
 
-// ---------------------------------------------------------------------------
-// Channel layout helpers — adapted from audiochecksum (same ffmpeg compat shim)
-// ---------------------------------------------------------------------------
-
-uint64_t channelBit(const AudioFormat::ChannelPosition position)
-{
-    using P = AudioFormat::ChannelPosition;
-    switch(position) {
-        case P::FrontLeft:          return static_cast<uint64_t>(AV_CH_FRONT_LEFT);
-        case P::FrontRight:         return static_cast<uint64_t>(AV_CH_FRONT_RIGHT);
-        case P::FrontCenter:        return static_cast<uint64_t>(AV_CH_FRONT_CENTER);
-        case P::LFE:                return static_cast<uint64_t>(AV_CH_LOW_FREQUENCY);
-        case P::BackLeft:           return static_cast<uint64_t>(AV_CH_BACK_LEFT);
-        case P::BackRight:          return static_cast<uint64_t>(AV_CH_BACK_RIGHT);
-        case P::FrontLeftOfCenter:  return static_cast<uint64_t>(AV_CH_FRONT_LEFT_OF_CENTER);
-        case P::FrontRightOfCenter: return static_cast<uint64_t>(AV_CH_FRONT_RIGHT_OF_CENTER);
-        case P::BackCenter:         return static_cast<uint64_t>(AV_CH_BACK_CENTER);
-        case P::SideLeft:           return static_cast<uint64_t>(AV_CH_SIDE_LEFT);
-        case P::SideRight:          return static_cast<uint64_t>(AV_CH_SIDE_RIGHT);
-        case P::TopCenter:          return static_cast<uint64_t>(AV_CH_TOP_CENTER);
-        case P::TopFrontLeft:       return static_cast<uint64_t>(AV_CH_TOP_FRONT_LEFT);
-        case P::TopFrontCenter:     return static_cast<uint64_t>(AV_CH_TOP_FRONT_CENTER);
-        case P::TopFrontRight:      return static_cast<uint64_t>(AV_CH_TOP_FRONT_RIGHT);
-        case P::TopBackLeft:        return static_cast<uint64_t>(AV_CH_TOP_BACK_LEFT);
-        case P::TopBackCenter:      return static_cast<uint64_t>(AV_CH_TOP_BACK_CENTER);
-        case P::TopBackRight:       return static_cast<uint64_t>(AV_CH_TOP_BACK_RIGHT);
-#ifdef AV_CH_LOW_FREQUENCY_2
-        case P::LFE2:            return static_cast<uint64_t>(AV_CH_LOW_FREQUENCY_2);
-#endif
-#ifdef AV_CH_TOP_SIDE_LEFT
-        case P::TopSideLeft:     return static_cast<uint64_t>(AV_CH_TOP_SIDE_LEFT);
-#endif
-#ifdef AV_CH_TOP_SIDE_RIGHT
-        case P::TopSideRight:    return static_cast<uint64_t>(AV_CH_TOP_SIDE_RIGHT);
-#endif
-#ifdef AV_CH_BOTTOM_FRONT_CENTER
-        case P::BottomFrontCenter: return static_cast<uint64_t>(AV_CH_BOTTOM_FRONT_CENTER);
-#endif
-#ifdef AV_CH_BOTTOM_FRONT_LEFT
-        case P::BottomFrontLeft:   return static_cast<uint64_t>(AV_CH_BOTTOM_FRONT_LEFT);
-#endif
-#ifdef AV_CH_BOTTOM_FRONT_RIGHT
-        case P::BottomFrontRight:  return static_cast<uint64_t>(AV_CH_BOTTOM_FRONT_RIGHT);
-#endif
-        case P::UnknownPosition:
-        default:
-            return 0;
-    }
-}
-
-std::optional<uint64_t> explicitMaskFromLayout(const AudioFormat& format)
-{
-    if(!format.hasChannelLayout())
-        return {};
-
-    const int channelCount = std::max(1, format.channelCount());
-    const auto layout      = format.channelLayoutView();
-    if(std::cmp_less(layout.size(), channelCount))
-        return {};
-
-    uint64_t mask{0};
-    for(int i{0}; i < channelCount; ++i) {
-        const uint64_t bit = channelBit(layout[static_cast<size_t>(i)]);
-        if(bit == 0 || (mask & bit) != 0)
-            return {};
-        mask |= bit;
-    }
-
-    if(std::popcount(mask) != channelCount)
-        return {};
-
-    return mask;
-}
-
-#if OLD_CHANNEL_LAYOUT
-uint64_t channelMaskForFormat(const AudioFormat& format)
-{
-    if(const auto explicitMask = explicitMaskFromLayout(format))
-        return *explicitMask;
-
-    const int channelCount   = std::max(1, format.channelCount());
-    const int64_t defaultMsk = av_get_default_channel_layout(channelCount);
-    if(defaultMsk > 0)
-        return static_cast<uint64_t>(defaultMsk);
-
-    return 0;
-}
-#else
-bool channelLayoutForFormat(const AudioFormat& format, AVChannelLayout& layout)
-{
-    layout = {};
-
-    const int channelCount = std::max(1, format.channelCount());
-    if(const auto explicitMask = explicitMaskFromLayout(format)) {
-        if(av_channel_layout_from_mask(&layout, *explicitMask) == 0
-           && layout.nb_channels == channelCount) {
-            return true;
-        }
-        av_channel_layout_uninit(&layout);
-    }
-
-    av_channel_layout_default(&layout, channelCount);
-    return layout.nb_channels == channelCount;
-}
-#endif
-
-AVSampleFormat avSampleFormatFor(const AudioFormat& format)
-{
-    switch(format.sampleFormat()) {
-        case SampleFormat::U8:      return AV_SAMPLE_FMT_U8;
-        case SampleFormat::S16:     return AV_SAMPLE_FMT_S16;
-        case SampleFormat::S24In32:
-        case SampleFormat::S32:     return AV_SAMPLE_FMT_S32;
-        case SampleFormat::F32:     return AV_SAMPLE_FMT_FLT;
-        case SampleFormat::F64:     return AV_SAMPLE_FMT_DBL;
-        default:                    return AV_SAMPLE_FMT_NONE;
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Swresample context — converts any PCM format to mono SoundTouch native fmt
-// ---------------------------------------------------------------------------
-
-struct SwrContextDeleter
-{
-    void operator()(SwrContext* ctx) const
-    {
-        if(ctx)
-            swr_free(&ctx);
-    }
-};
-using SwrContextPtr = std::unique_ptr<SwrContext, SwrContextDeleter>;
-
-// Creates a swresample context that converts `fmt` → mono, kSoundTouchAvFmt,
-// same sample rate.  The mono mix-down is performed by swresample.
-SwrContextPtr createMonoConverter(const AudioFormat& fmt)
-{
-    const AVSampleFormat inputFmt = avSampleFormatFor(fmt);
-    if(inputFmt == AV_SAMPLE_FMT_NONE)
-        return {};
-
-    SwrContext* ctx = nullptr;
-
-#if OLD_CHANNEL_LAYOUT
-    const uint64_t inputMask = channelMaskForFormat(fmt);
-    if(inputMask == 0)
-        return {};
-
-    ctx = swr_alloc_set_opts(nullptr,
-                             AV_CH_LAYOUT_MONO, kSoundTouchAvFmt, fmt.sampleRate(),
-                             static_cast<int64_t>(inputMask), inputFmt, fmt.sampleRate(),
-                             0, nullptr);
-    if(!ctx)
-        return {};
-#else
-    AVChannelLayout inLayout{};
-    AVChannelLayout outLayout{};
-
-    if(!channelLayoutForFormat(fmt, inLayout)) {
-        av_channel_layout_uninit(&inLayout);
-        return {};
-    }
-    av_channel_layout_default(&outLayout, 1); // 1 channel = mono
-
-    const int rc = swr_alloc_set_opts2(&ctx,
-                                       &outLayout, kSoundTouchAvFmt, fmt.sampleRate(),
-                                       &inLayout, inputFmt, fmt.sampleRate(),
-                                       0, nullptr);
-    av_channel_layout_uninit(&inLayout);
-    av_channel_layout_uninit(&outLayout);
-    if(rc < 0 || !ctx) {
-        swr_free(&ctx);
-        return {};
-    }
-#endif
-
-    if(swr_init(ctx) < 0) {
-        swr_free(&ctx);
-        return {};
-    }
-
-    return SwrContextPtr{ctx};
-}
-
-// Converts one AudioBuffer to a vector of mono SoundTouch samples.
-// Returns empty optional on converter failure, empty vector on zero-frame input.
+// Converts one AudioBuffer to interleaved SoundTouch samples, preserving the
+// input channel count: BPMDetect performs the mono mix-down itself when fed
+// multi-channel samples. Returns empty optional on conversion failure, empty
+// vector on zero-frame input.
 std::optional<std::vector<SoundTouchSample>>
-convertToMonoSamples(SwrContext* ctx, const AudioBuffer& buf)
+convertToSoundTouchSamples(const AudioBuffer& buf)
 {
     const int inFrames = buf.frameCount();
     if(inFrames <= 0)
         return std::vector<SoundTouchSample>{};
 
-    const int maxOutFrames = swr_get_out_samples(ctx, inFrames);
-    if(maxOutFrames <= 0)
+    AudioFormat targetFormat = buf.format();
+    targetFormat.setSampleFormat(kSoundTouchSampleFormat);
+
+    const AudioBuffer converted = Audio::convert(buf, targetFormat);
+    if(!converted.isValid() || converted.byteCount() == 0)
         return {};
 
-    std::vector<SoundTouchSample> out(static_cast<size_t>(maxOutFrames));
-
-    const auto* inData = reinterpret_cast<const uint8_t*>(buf.data());
-    auto*       outPtr = reinterpret_cast<uint8_t*>(out.data());
-
-    const uint8_t* inPlanes[1]  = {inData};
-    uint8_t*       outPlanes[1] = {outPtr};
-
-    const int outFrames = swr_convert(ctx, outPlanes, maxOutFrames, inPlanes, inFrames);
-    if(outFrames < 0)
-        return {};
-
-    out.resize(static_cast<size_t>(outFrames));
-    return out;
+    const auto* data = reinterpret_cast<const SoundTouchSample*>(converted.data());
+    const auto count
+        = static_cast<size_t>(converted.byteCount()) / sizeof(SoundTouchSample);
+    return std::vector<SoundTouchSample>{data, data + count};
 }
 
 // ---------------------------------------------------------------------------
@@ -468,18 +271,10 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
         return result;
     }
 
-    // ---- Create mono converter ----
-    SwrContextPtr converter = createMonoConverter(fmt);
-    if(!converter) {
-        loaded.decoder->stop();
-        result.status      = BpmResult::Status::Error;
-        result.errorString = QObject::tr("Could not initialise audio format converter");
-        return result;
-    }
-
     // ---- Initialise BPMDetect ----
-    // We feed mono samples, so numChannels = 1.
-    soundtouch::BPMDetect detector(1, sampleRate);
+    // Feed the full interleaved channel data; BPMDetect mixes down to mono
+    // internally via its decimator, so no separate mono conversion is needed.
+    soundtouch::BPMDetect detector(inputChans, sampleRate);
 
     // ---- Decode and feed samples ----
     const qint64 maxFrames = static_cast<qint64>(sampleLength) * sampleRate;
@@ -493,7 +288,7 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
         if(!buf.isValid() || buf.byteCount() == 0)
             break;
 
-        auto samples = convertToMonoSamples(converter.get(), buf);
+        auto samples = convertToSoundTouchSamples(buf);
         if(!samples) {
             loaded.decoder->stop();
             result.status      = BpmResult::Status::Error;
@@ -502,7 +297,11 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
         }
 
         if(!samples->empty()) {
-            detector.inputSamples(samples->data(), static_cast<int>(samples->size()));
+            // inputSamples' count is in *frames*; each frame holds `inputChans`
+            // interleaved values. Passing the sample count would make SoundTouch
+            // read `channels` values per frame and walk past the buffer.
+            const auto frameCount = static_cast<int>(samples->size() / inputChans);
+            detector.inputSamples(samples->data(), frameCount);
         }
 
         framesProcessed += buf.frameCount();
