@@ -1,4 +1,5 @@
 # fooyin-plugins
+Disclaimer: These plugins was made with LLM assistance.
 
 Third-party plugins for the [Fooyin](https://github.com/fooyin/fooyin/) media player.
 
