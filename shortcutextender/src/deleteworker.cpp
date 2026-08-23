@@ -207,7 +207,13 @@ void DeleteWorker::deleteFiles()
     }
 
     if(!deleted.empty()) {
-        m_library->deleteTracks(deleted);
+        // MusicLibrary and its LibraryThreadHandler are main-thread objects:
+        // deleteTracks() touches unsynchronized internal state (write-operation
+        // registry, database manager) and must never be called from a worker
+        // thread. Hop to the main thread; the library performs the deletion
+        // asynchronously and reports via tracksDeleted().
+        QMetaObject::invokeMethod(
+            m_library, [this, tracks = deleted]() { m_library->deleteTracks(tracks); });
     }
     else {
         qCWarning(SHORTCUTEXT) << "Delete operation completed but no files were successfully deleted";
