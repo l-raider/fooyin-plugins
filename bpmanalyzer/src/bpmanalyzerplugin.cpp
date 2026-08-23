@@ -39,11 +39,9 @@ namespace {
 class BpmAnalyzerSettingsProvider : public Fooyin::PluginSettingsProvider
 {
 public:
-    void showSettings(QWidget* parent) override
+    [[nodiscard]] QDialog* createSettings(QWidget* parent) override
     {
-        auto* dlg = new Fooyin::BpmAnalyzer::BpmAnalyzerSettingsDialog(parent);
-        dlg->setAttribute(Qt::WA_DeleteOnClose);
-        dlg->show();
+        return new Fooyin::BpmAnalyzer::BpmAnalyzerSettingsDialog(parent);
     }
 };
 
