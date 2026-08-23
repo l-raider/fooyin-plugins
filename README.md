@@ -49,5 +49,4 @@ Candidates are rounded to the nearest integer BPM and binned by total weight. Th
 ### Shortcut Extender
 
 - Adds new shorcuts (hotkeys) under **Settings → Shortcuts → Shortcut Extender**.  
-  - **Delete Currently Playing**: Deletes the currently playing/paused track's file (trashbin or permanent).
-  - **FileOps Preset Shortcuts**: Exposes each File Operation preset as a bindable shortcut.  
+  - **Delete Currently Playing**: Deletes the currently playing/paused track's file (trashbin or permanent).  

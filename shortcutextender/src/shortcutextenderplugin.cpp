@@ -20,7 +20,6 @@
 #include "shortcutextenderplugin.h"
 
 #include "deletecurrentlyplaying.h"
-#include "fileopspresetshortcuts.h"
 #include "shortcutextendersettings.h"
 
 #include <core/plugins/coreplugincontext.h>
@@ -60,8 +59,6 @@ void ShortcutExtenderPlugin::initialise(const GuiPluginContext& context)
 {
     m_deleteCurrentlyPlaying = std::make_unique<DeleteCurrentlyPlaying>(
         context.actionManager, m_playerController, m_library, m_settings, this);
-    m_fileOpsPresetShortcuts = std::make_unique<FileOpsPresetShortcuts>(
-        context.actionManager, context.trackSelection, m_playerController, m_library, this);
 }
 
 std::unique_ptr<PluginSettingsProvider> ShortcutExtenderPlugin::settingsProvider() const
