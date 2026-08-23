@@ -7,6 +7,7 @@
 - Ninja (`ninja-build`)
 - Qt 6.4+ development files
 - fooyin headers and cmake config (see below)
+- taglib-devel ffmpeg-devel
 
 ### Debian/Ubuntu dependencies
 
