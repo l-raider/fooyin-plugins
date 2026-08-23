@@ -60,8 +60,8 @@ ShortcutExtenderSettings::ShortcutExtenderSettings(SettingsManager* settings, QW
     layout->addWidget(deleteModeBox);
     layout->addWidget(buttons);
 
-    setMinimumWidth(550);
-    resize(600, 450);
+    setMinimumWidth(300);
+    resize(360, 200);
 
     load();
 }
