@@ -17,17 +17,12 @@ set(CMAKE_AUTOUIC ON)
 find_package(Fooyin REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Concurrent)
 
-# FFmpeg headers/libs for the PCM->S16 swresample conversion in the checksum worker.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil libswresample)
-
 create_fooyin_plugin(
     audiochecksum
     JSON_IN src/audiochecksum.json.in
     DEPENDS Fooyin::Core
             Fooyin::Gui
             Qt6::Concurrent
-            PkgConfig::FFMPEG
     SOURCES src/audiochecksumdefs.h
             src/audiochecksumresult.h
             src/flacstreaminfo.h

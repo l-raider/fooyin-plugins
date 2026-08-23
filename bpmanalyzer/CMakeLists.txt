@@ -17,10 +17,6 @@ set(CMAKE_AUTOUIC ON)
 find_package(Fooyin REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Concurrent)
 
-# FFmpeg headers/libs for the PCM->mono swresample conversion in the BPM worker.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavcodec libavutil libswresample)
-
 # ---------------------------------------------------------------------------
 # SoundTouch — built from the git submodule at 3rdparty/soundtouch.
 # We build it as a static library so the plugin bundle is self-contained and
@@ -61,7 +57,6 @@ create_fooyin_plugin(
             Fooyin::Gui
             Qt6::Concurrent
             SoundTouch::SoundTouch
-            PkgConfig::FFMPEG
     SOURCES src/bpmanalyzerdefs.h
             src/bpmanalyzerresult.h
             src/bpmanalyzerworker.h
