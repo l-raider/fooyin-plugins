@@ -23,7 +23,9 @@
 #include <core/track.h>
 
 #include <QDialog>
+#include <QHash>
 #include <QList>
+#include <QSet>
 
 #include <chrono>
 #include <functional>
@@ -74,6 +76,8 @@ private:
     void onScanFinished();
     void scaleSelectedBpm(float factor);
     void saveToTags();
+    void writeNextTag();
+    void finishTagWrite();
     void cancelActive();
     void setupContextMenu();
     void updateButtons();
@@ -96,6 +100,19 @@ private:
     QPushButton* m_closeButton;
 
     std::function<void()> m_writeCancel;
+
+    TrackList m_writeQueue;                  // tracks still to write (same order as before)
+    qsizetype m_writeIndex{0};
+    TrackList m_writeInFlightChunk;          // tracks of the write request in flight
+    QString m_writeField;                    // tag field being written
+    QHash<QString, QString> m_pathToBpm;     // uniqueFilepath -> value
+    QSet<QString> m_savedPaths;
+    QSet<QString> m_processedPaths;
+    int m_writeTotal{0};
+    int m_writeSkipped{0};
+    int m_writeSucceeded{0};
+    int m_writeFailed{0};
+    bool m_writeCancelled{false};
 
     std::chrono::steady_clock::time_point m_scanStart;
     bool m_scanning{false};

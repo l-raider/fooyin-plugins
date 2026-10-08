@@ -30,7 +30,7 @@
 #include <QCloseEvent>
 #include <QDesktopServices>
 #include <QFileInfo>
-#include <QFutureWatcher>
+#include <QFuture>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -38,14 +38,23 @@
 #include <QMenu>
 #include <QProgressBar>
 #include <QPushButton>
-#include <QSet>
 #include <QSortFilterProxyModel>
 #include <QTableView>
 #include <QUrl>
 
+#include <algorithm>
+
 using namespace Qt::StringLiterals;
 
 namespace Fooyin::BpmAnalyzer {
+
+namespace {
+
+// Tracks per write request. Batching keeps per-item progress visible while
+// avoiding one whole-library metadata commit in fooyin per saved track.
+constexpr qsizetype WriteChunkSize = 16;
+
+} // namespace
 
 BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
                                        std::shared_ptr<AudioLoader> audioLoader,
@@ -226,127 +235,135 @@ void BpmAnalyzerResults::saveToTags()
     if(toSave.isEmpty())
         return;
 
-    const int skipped = m_resultsModel->nonWritableCount();
+    m_writeField   = QLatin1String{BpmTagField};
+    m_writeSkipped = m_resultsModel->nonWritableCount();
 
-    auto targetPaths = std::make_shared<QSet<QString>>();
-    targetPaths->reserve(toSave.size());
+    m_writeQueue.clear();
+    m_writeIndex = 0;
+    m_savedPaths.clear();
+    m_processedPaths.clear();
+    m_pathToBpm.clear();
+    m_writeSucceeded = 0;
+    m_writeFailed    = 0;
+    m_writeCancelled = false;
 
-    // Map segment-aware track identity → analyzed BPM so chapter tracks from the
-    // same container file are tracked independently.
-    auto pathToBpm = std::make_shared<QHash<QString, QString>>();
-    pathToBpm->reserve(toSave.size());
-
-    TrackList tracks;
-    tracks.reserve(toSave.size());
+    m_writeQueue.reserve(toSave.size());
     for(auto& result : toSave) {
-        result.track.replaceExtraTag(QLatin1String{BpmTagField}, result.analyzedBpm);
+        result.track.replaceExtraTag(m_writeField, result.analyzedBpm);
         const QString trackKey = result.track.uniqueFilepath();
-        targetPaths->insert(trackKey);
-        pathToBpm->insert(trackKey, result.analyzedBpm);
-        tracks.push_back(result.track);
+        m_pathToBpm.insert(trackKey, result.analyzedBpm);
+        m_writeQueue.push_back(result.track);
     }
 
-    const int total = static_cast<int>(targetPaths->size());
-    if(total <= 0)
+    m_writeTotal = static_cast<int>(m_pathToBpm.size());
+    if(m_writeTotal <= 0)
         return;
 
     m_saving = true;
-    m_progressBar->setRange(0, total);
+    m_progressBar->setRange(0, m_writeTotal);
     m_progressBar->setValue(0);
     m_progressBar->setVisible(true);
-    m_status->setText(tr("Writing tags %1 / %2…").arg(0).arg(total));
+    m_status->setText(tr("Preparing to write %1 tag(s)…").arg(m_writeTotal));
     m_analyzeButton->setEnabled(false);
     m_doubleBpmButton->setEnabled(false);
     m_halveBpmButton->setEnabled(false);
     m_saveButton->setEnabled(false);
     m_cancelButton->setEnabled(true);
 
-    auto savedPaths = std::make_shared<QSet<QString>>();
-    savedPaths->reserve(total);
+    writeNextTag();
+}
 
-    auto conn = std::make_shared<QMetaObject::Connection>();
-    *conn = QObject::connect(
-        m_library, &MusicLibrary::tracksMetadataChanged,
-        this, [this, targetPaths, savedPaths, total](const TrackList& changed) {
-            bool updated = false;
-            for(const Track& track : changed) {
-                const QString path = track.uniqueFilepath();
-                if(!targetPaths->contains(path) || savedPaths->contains(path))
-                    continue;
-                savedPaths->insert(path);
-                updated = true;
-            }
-            if(!updated)
-                return;
+void BpmAnalyzerResults::writeNextTag()
+{
+    if(m_writeCancelled || m_writeIndex >= static_cast<qsizetype>(m_writeQueue.size())) {
+        finishTagWrite();
+        return;
+    }
 
-            m_progressBar->setValue(static_cast<int>(savedPaths->size()));
-            m_status->setText(
-                tr("Writing tags %1 / %2…")
-                    .arg(static_cast<int>(savedPaths->size()))
-                    .arg(total));
-        });
+    const qsizetype chunkEnd =
+        std::min(m_writeIndex + WriteChunkSize, static_cast<qsizetype>(m_writeQueue.size()));
 
-    auto* writeWatcher = new QFutureWatcher<WriteResult>(this);
-    QObject::connect(writeWatcher, &QFutureWatcher<WriteResult>::finished,
-                     this, [this, targetPaths, savedPaths, pathToBpm, conn, writeWatcher, total, skipped]() {
-                         QObject::disconnect(*conn);
+    m_writeInFlightChunk.clear();
+    m_writeInFlightChunk.reserve(static_cast<size_t>(chunkEnd - m_writeIndex));
+    for(qsizetype i{m_writeIndex}; i < chunkEnd; ++i)
+        m_writeInFlightChunk.push_back(m_writeQueue.at(i));
+    m_writeIndex = chunkEnd;
 
-                         const WriteResult result = writeWatcher->result();
-                         writeWatcher->deleteLater();
-
-                         const QString skippedNote = skipped > 0
-                             ? " "_L1 + tr("Skipped %1 non-writable track(s).").arg(skipped)
-                             : QString{};
-
-                         // Helper: update m_tracks for the given set of saved paths so that
-                         // the next Analyze run reads the correct stored BPM from the track.
-                         const auto refreshTracks = [this, &pathToBpm](const QSet<QString>& saved) {
-                             for(Track& track : m_tracks) {
-                                  const QString trackKey = track.uniqueFilepath();
-                                  const auto it = pathToBpm->find(trackKey);
-                                  if(it != pathToBpm->end() && saved.contains(trackKey))
-                                     track.replaceExtraTag(QLatin1String{BpmTagField}, it.value());
-                             }
-                         };
-
-                         if(result.failed == 0 && result.state == WriteState::Completed) {
-                             m_progressBar->setValue(total);
-                             m_resultsModel->markSaved(*targetPaths);
-                             refreshTracks(*targetPaths);
-                             m_status->setText(tr("Tags saved.") + skippedNote);
-                         }
-                         else {
-                             m_progressBar->setValue(static_cast<int>(savedPaths->size()));
-                             m_resultsModel->markSaved(*savedPaths);
-                             refreshTracks(*savedPaths);
-                             if(result.state == WriteState::Cancelled) {
-                                 m_status->setText(
-                                     tr("Tag write cancelled (%1 / %2 saved).")
-                                         .arg(static_cast<int>(savedPaths->size()))
-                                         .arg(total)
-                                     + skippedNote);
-                             }
-                             else {
-                                 m_status->setText(
-                                     tr("Saved %1 / %2 tag(s); %3 failed.")
-                                         .arg(result.succeeded)
-                                         .arg(total)
-                                         .arg(result.failed)
-                                     + skippedNote);
-                             }
-                         }
-
-                         m_progressBar->setVisible(false);
-                         m_saving = false;
-                         m_writeCancel = nullptr;
-                         m_cancelButton->setEnabled(false);
-                         m_analyzeButton->setEnabled(true);
-                         updateButtons();
-                     });
-
-    const WriteRequest request = m_library->writeTrackMetadata(tracks);
+    WriteRequest request = m_library->writeTrackMetadata(m_writeInFlightChunk);
     m_writeCancel = request.cancel;
-    writeWatcher->setFuture(request.finished);
+
+    // Same pattern as fooyin's PropertiesWriteProgress (propertiesdialog.cpp:141):
+    // `then` with a context object delivers on the main thread and auto-disconnects
+    // if the dialog is destroyed.
+    request.finished.then(this, [this](const WriteResult& result) {
+        if(result.state == WriteState::Cancelled)
+            m_writeCancelled = true;
+
+        m_writeSucceeded += result.succeeded;
+        m_writeFailed    += result.failed;
+
+        // The per-request result is authoritative; a chunk that completed with
+        // no failures was fully saved even if cancellation was requested while
+        // it was in flight.
+        const bool chunkSaved = result.failed == 0 && result.state == WriteState::Completed;
+        for(const Track& track : m_writeInFlightChunk) {
+            const QString path = track.uniqueFilepath();
+            m_processedPaths.insert(path);
+            if(chunkSaved)
+                m_savedPaths.insert(path);
+        }
+
+        m_progressBar->setValue(static_cast<int>(m_processedPaths.size()));
+        m_status->setText(tr("Writing tags %1 / %2…")
+                              .arg(static_cast<int>(m_processedPaths.size()))
+                              .arg(m_writeTotal));
+
+        // Queued hop avoids unbounded recursion when the future was already
+        // finished (currently-playing / active-source tracks return an
+        // immediately-completed request).
+        QMetaObject::invokeMethod(this, &BpmAnalyzerResults::writeNextTag, Qt::QueuedConnection);
+    });
+}
+
+void BpmAnalyzerResults::finishTagWrite()
+{
+    const QString skippedNote = m_writeSkipped > 0
+        ? " "_L1 + tr("Skipped %1 non-writable track(s).").arg(m_writeSkipped)
+        : QString{};
+
+    // Refresh m_tracks so the next Analyze run reads the stored BPM.
+    for(Track& track : m_tracks) {
+        const QString trackKey = track.uniqueFilepath();
+        const auto it = m_pathToBpm.constFind(trackKey);
+        if(it != m_pathToBpm.cend() && m_savedPaths.contains(trackKey))
+            track.replaceExtraTag(m_writeField, it.value());
+    }
+
+    m_resultsModel->markSaved(m_savedPaths);
+
+    if(m_writeCancelled) {
+        m_status->setText(tr("Tag write cancelled (%1 / %2 saved).")
+                              .arg(static_cast<int>(m_savedPaths.size()))
+                              .arg(m_writeTotal) + skippedNote);
+    }
+    else if(m_writeFailed == 0) {
+        m_progressBar->setValue(m_writeTotal);
+        m_status->setText(tr("Tags saved.") + skippedNote);
+    }
+    else {
+        m_status->setText(tr("Saved %1 / %2 tag(s); %3 failed.")
+                              .arg(m_writeSucceeded)
+                              .arg(m_writeTotal)
+                              .arg(m_writeFailed) + skippedNote);
+    }
+
+    m_progressBar->setVisible(false);
+    m_saving = false;
+    m_writeCancel = nullptr;
+    m_writeQueue.clear();
+    m_cancelButton->setEnabled(false);
+    m_analyzeButton->setEnabled(true);
+    updateButtons();
 }
 
 void BpmAnalyzerResults::cancelActive()
@@ -363,8 +380,10 @@ void BpmAnalyzerResults::cancelActive()
         m_cancelButton->setEnabled(false);
         updateButtons();
     }
-    else if(m_saving && m_writeCancel) {
-        m_writeCancel();
+    else if(m_saving) {
+        m_writeCancelled = true;
+        if(m_writeCancel)
+            m_writeCancel();
         m_status->setText(tr("Cancelling…"));
         m_cancelButton->setEnabled(false);
     }
@@ -389,12 +408,15 @@ void BpmAnalyzerResults::closeEvent(QCloseEvent* event)
         m_scanner = nullptr;
         m_scanning = false;
     }
-    if(m_saving && m_writeCancel) {
+    if(m_saving) {
         // The dialog is closing (and will be deleted), so cancel the in-flight
         // tag write instead of losing track of it.
-        m_writeCancel();
+        m_writeCancelled = true;
+        if(m_writeCancel)
+            m_writeCancel();
         m_writeCancel = nullptr;
-        m_saving     = false;
+        m_saving      = false;
+        m_writeQueue.clear();
     }
     QDialog::closeEvent(event);
 }
