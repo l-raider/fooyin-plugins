@@ -395,19 +395,35 @@ void AudioChecksumResults::exportToCsv()
     out.setEncoding(QStringConverter::Utf8);
     out.setGenerateByteOrderMark(true);
 
-    const int columns = m_proxyModel->columnCount();
+    const int columns     = m_proxyModel->columnCount();
+    const int filenameCol = static_cast<int>(AudioChecksumResultsModel::Column::Filename);
     QStringList fields;
     fields.reserve(columns);
 
-    for(int col{0}; col < columns; ++col)
-        fields.append(csvEscape(m_proxyModel->headerData(col, Qt::Horizontal, Qt::DisplayRole).toString()));
+    for(int col{0}; col < columns; ++col) {
+        const QString header = col == filenameCol
+            ? tr("File Path")
+            : m_proxyModel->headerData(col, Qt::Horizontal, Qt::DisplayRole).toString();
+        fields.append(csvEscape(header));
+    }
     out << fields.join(u',') << u"\r\n"_s;
 
     for(int row{0}; row < rows; ++row) {
+        // Export the full path for the file column; the view shows base names.
+        const QModelIndex srcIndex = m_proxyModel->mapToSource(m_proxyModel->index(row, 0));
+        const QString filePath     = srcIndex.isValid()
+            ? m_resultsModel->results().at(srcIndex.row()).track.filepath()
+            : QString{};
+
         fields.clear();
-        for(int col{0}; col < columns; ++col)
+        for(int col{0}; col < columns; ++col) {
+            if(col == filenameCol) {
+                fields.append(csvEscape(filePath));
+                continue;
+            }
             fields.append(csvEscape(
                 m_proxyModel->data(m_proxyModel->index(row, col), Qt::DisplayRole).toString()));
+        }
         out << fields.join(u',') << u"\r\n"_s;
     }
     out.flush();
