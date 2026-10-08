@@ -4,7 +4,8 @@
 # Prerequisites:
 #   fooyin must be installed (or built) with -DINSTALL_HEADERS=ON so that
 #   find_package(Fooyin) can locate the headers and cmake config files.
-#   SoundTouch library and development headers must also be installed.
+#   SoundTouch is built from the bundled 3rdparty/soundtouch submodule; no
+#   system SoundTouch installation is required.
 #
 #   Install fooyin with headers:
 #     cmake -S /path/to/fooyin -G Ninja -B /tmp/fooyin-build \

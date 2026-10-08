@@ -112,11 +112,7 @@ BpmAnalyzerResults::BpmAnalyzerResults(MusicLibrary* library,
     // Enable Double/Halve buttons only when rows are selected
     QObject::connect(m_resultsView->selectionModel(),
                      &QItemSelectionModel::selectionChanged,
-                     this, [this]() {
-                         const bool has = m_resultsView->selectionModel()->hasSelection();
-                         m_doubleBpmButton->setEnabled(has && !m_saving);
-                         m_halveBpmButton->setEnabled(has && !m_saving);
-                     });
+                     this, &BpmAnalyzerResults::updateButtons);
 
     setupContextMenu();
 
@@ -175,7 +171,6 @@ void BpmAnalyzerResults::startScan()
     QObject::connect(m_scanner, &BpmAnalyzerScanner::trackScanned, this,
                      [this](const BpmResult& result) {
                          m_resultsModel->appendResult(result);
-                         m_resultsView->resizeColumnsToContents();
                      });
 
     QObject::connect(m_scanner, &BpmAnalyzerScanner::scanFinished,
@@ -184,7 +179,7 @@ void BpmAnalyzerResults::startScan()
     m_scanner->scanTracks(m_tracks);
 }
 
-void BpmAnalyzerResults::onScanFinished(const QList<BpmResult>& /*results*/)
+void BpmAnalyzerResults::onScanFinished()
 {
     m_scanning = false;
     if(m_scanner) {
@@ -230,6 +225,8 @@ void BpmAnalyzerResults::saveToTags()
     QList<BpmResult> toSave = m_resultsModel->resultsToSave();
     if(toSave.isEmpty())
         return;
+
+    const int skipped = m_resultsModel->nonWritableCount();
 
     auto targetPaths = std::make_shared<QSet<QString>>();
     targetPaths->reserve(toSave.size());
@@ -291,11 +288,15 @@ void BpmAnalyzerResults::saveToTags()
 
     auto* writeWatcher = new QFutureWatcher<WriteResult>(this);
     QObject::connect(writeWatcher, &QFutureWatcher<WriteResult>::finished,
-                     this, [this, targetPaths, savedPaths, pathToBpm, conn, writeWatcher, total]() {
+                     this, [this, targetPaths, savedPaths, pathToBpm, conn, writeWatcher, total, skipped]() {
                          QObject::disconnect(*conn);
 
                          const WriteResult result = writeWatcher->result();
                          writeWatcher->deleteLater();
+
+                         const QString skippedNote = skipped > 0
+                             ? " "_L1 + tr("Skipped %1 non-writable track(s).").arg(skipped)
+                             : QString{};
 
                          // Helper: update m_tracks for the given set of saved paths so that
                          // the next Analyze run reads the correct stored BPM from the track.
@@ -312,7 +313,7 @@ void BpmAnalyzerResults::saveToTags()
                              m_progressBar->setValue(total);
                              m_resultsModel->markSaved(*targetPaths);
                              refreshTracks(*targetPaths);
-                             m_status->setText(tr("Tags saved."));
+                             m_status->setText(tr("Tags saved.") + skippedNote);
                          }
                          else {
                              m_progressBar->setValue(static_cast<int>(savedPaths->size()));
@@ -322,14 +323,16 @@ void BpmAnalyzerResults::saveToTags()
                                  m_status->setText(
                                      tr("Tag write cancelled (%1 / %2 saved).")
                                          .arg(static_cast<int>(savedPaths->size()))
-                                         .arg(total));
+                                         .arg(total)
+                                     + skippedNote);
                              }
                              else {
                                  m_status->setText(
                                      tr("Saved %1 / %2 tag(s); %3 failed.")
                                          .arg(result.succeeded)
                                          .arg(total)
-                                         .arg(result.failed));
+                                         .arg(result.failed)
+                                     + skippedNote);
                              }
                          }
 
@@ -385,6 +388,13 @@ void BpmAnalyzerResults::closeEvent(QCloseEvent* event)
         m_scanner->deleteLater();
         m_scanner = nullptr;
         m_scanning = false;
+    }
+    if(m_saving && m_writeCancel) {
+        // The dialog is closing (and will be deleted), so cancel the in-flight
+        // tag write instead of losing track of it.
+        m_writeCancel();
+        m_writeCancel = nullptr;
+        m_saving     = false;
     }
     QDialog::closeEvent(event);
 }

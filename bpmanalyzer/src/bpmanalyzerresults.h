@@ -71,7 +71,7 @@ protected:
 
 private:
     void startScan();
-    void onScanFinished(const QList<BpmResult>& results);
+    void onScanFinished();
     void scaleSelectedBpm(float factor);
     void saveToTags();
     void cancelActive();

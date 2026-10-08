@@ -20,6 +20,8 @@
 
 #include <QFile>
 
+#include <algorithm>
+
 namespace Fooyin::AudioChecksum {
 
 /*
@@ -43,15 +45,60 @@ namespace Fooyin::AudioChecksum {
  *    Bytes 18-33: MD5 of uncompressed PCM (16 bytes)
  */
 
+namespace {
+
+//! Skips a leading ID3v2 tag if present, leaving the stream at the FLAC magic.
+//! Returns false when the stream does not start with "fLaC" (with or without
+//! a preceding ID3v2 tag).
+bool seekToFlacMagic(QFile& file)
+{
+    QByteArray magic = file.read(4);
+    if(magic == "fLaC") {
+        return true;
+    }
+
+    // A leading ID3v2 tag before "fLaC" is legal, though discouraged.
+    if(!magic.startsWith("ID3")) {
+        return false;
+    }
+
+    // ID3v2 header: "ID3" (3), version (2), flags (1), syncsafe size (4).
+    // We have already consumed the first 4 bytes.
+    const QByteArray id3Header = file.read(6);
+    if(id3Header.size() < 6) {
+        return false;
+    }
+
+    const auto syncSafe = [](char c) {
+        return static_cast<quint32>(static_cast<quint8>(c) & 0x7F);
+    };
+    const quint32 tagSize = (syncSafe(id3Header[2]) << 21)
+                          | (syncSafe(id3Header[3]) << 14)
+                          | (syncSafe(id3Header[4]) << 7)
+                          | syncSafe(id3Header[5]);
+
+    qint64 skip = static_cast<qint64>(tagSize);
+    if(static_cast<quint8>(id3Header[1]) & 0x10) {
+        // Footer present: its 10 bytes are not included in the size field.
+        skip += 10;
+    }
+
+    if(!file.seek(file.pos() + skip)) {
+        return false;
+    }
+
+    return file.read(4) == "fLaC";
+}
+
+} // namespace
+
 QString readFlacStreamInfoMd5(const QString& filePath)
 {
     QFile file{filePath};
     if(!file.open(QIODevice::ReadOnly))
         return {};
 
-    // Check "fLaC" magic
-    const QByteArray magic = file.read(4);
-    if(magic != "fLaC")
+    if(!seekToFlacMagic(file))
         return {};
 
     // Iterate metadata blocks looking for STREAMINFO (type 0)

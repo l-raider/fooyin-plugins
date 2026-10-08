@@ -22,8 +22,6 @@
 
 #include <core/track.h>
 
-#include <QAtomicInt>
-
 #include <memory>
 
 namespace Fooyin {
@@ -32,13 +30,17 @@ class AudioLoader;
 
 namespace Fooyin::BpmAnalyzer {
 
+class CancellationToken;
+
 /*!
  * Pure computation helper that decodes a track to PCM, feeds the samples to
  * SoundTouch BPMDetect and returns an aggregated BPM value.
  *
  * computeBpm() is safe to call from multiple threads concurrently because
  * each invocation creates its own decoder and BPMDetect instance; there is
- * no shared mutable state other than the thread-safe AudioLoader.
+ * no shared mutable state other than the thread-safe AudioLoader. The
+ * cancellation token is polled between reads and also aborts registered
+ * decoders so an in-progress scan can be stopped promptly.
  */
 class BpmAnalyzerWorker
 {
@@ -46,7 +48,7 @@ public:
     explicit BpmAnalyzerWorker(std::shared_ptr<AudioLoader> audioLoader);
 
     [[nodiscard]] BpmResult computeBpm(const Track& track,
-                                       const QAtomicInt& cancelled) const;
+                                       CancellationToken& token) const;
 
 private:
     std::shared_ptr<AudioLoader> m_audioLoader;

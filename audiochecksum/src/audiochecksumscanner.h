@@ -18,11 +18,11 @@
 
 #pragma once
 
+#include "audiochecksumcancellation.h"
 #include "audiochecksumresult.h"
 
 #include <core/track.h>
 
-#include <QAtomicInt>
 #include <QFutureWatcher>
 #include <QObject>
 #include <QThreadPool>
@@ -60,7 +60,7 @@ public:
 signals:
     void scanningTrack(const QString& filepath);
     void trackScanned(const Fooyin::AudioChecksum::ChecksumResult& result);
-    void scanFinished(const QList<Fooyin::AudioChecksum::ChecksumResult>& results);
+    void scanFinished();
 
 private:
     void onResultReadyAt(int index);
@@ -69,7 +69,7 @@ private:
     std::unique_ptr<AudioChecksumWorker> m_worker;
     QFutureWatcher<ChecksumResult>       m_watcher;
     QThreadPool                          m_threadPool;
-    QAtomicInt                           m_cancelled{0};
+    CancellationToken                    m_token;
 };
 
 } // namespace Fooyin::AudioChecksum

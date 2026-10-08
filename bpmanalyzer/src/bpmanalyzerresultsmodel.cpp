@@ -23,15 +23,11 @@
 #include <QFileInfo>
 #include <QString>
 
-#include <cmath>
-
-using namespace Qt::StringLiterals;
-
 namespace Fooyin::BpmAnalyzer {
 
 namespace {
 
-// Scale a BPM string value by factor; returns empty string on parse failure.
+// Scale a BPM string value by factor; returns the input unchanged on parse failure.
 QString scaleBpmString(const QString& bpmStr, float factor, int precision = 0)
 {
     bool ok = false;
@@ -39,12 +35,16 @@ QString scaleBpmString(const QString& bpmStr, float factor, int precision = 0)
     if(!ok || val <= 0.0f)
         return bpmStr;
 
-    const float scaled = val * factor;
-    switch(precision) {
-        case 1: return QString::number(static_cast<double>(scaled), 'f', 1);
-        case 2: return QString::number(static_cast<double>(scaled), 'f', 2);
-        default: return QString::number(static_cast<int>(std::round(scaled)));
-    }
+    return formatBpmValue(val * factor, precision);
+}
+
+//! True when the result warrants writing a tag.
+bool isSavable(const BpmResult& result)
+{
+    return (result.status == BpmResult::Status::New
+            || result.status == BpmResult::Status::Updated)
+        && !result.analyzedBpm.isEmpty()
+        && result.analyzedBpm != result.storedBpm;
 }
 
 } // namespace
@@ -180,14 +180,21 @@ QList<BpmResult> BpmAnalyzerResultsModel::resultsToSave() const
 {
     QList<BpmResult> toSave;
     for(const auto& result : m_results) {
-        if(result.status != BpmResult::Status::New
-           && result.status != BpmResult::Status::Updated)
-            continue;
-        if(result.analyzedBpm.isEmpty() || result.analyzedBpm == result.storedBpm)
+        if(!isSavable(result) || !result.writable)
             continue;
         toSave.append(result);
     }
     return toSave;
+}
+
+int BpmAnalyzerResultsModel::nonWritableCount() const
+{
+    int count{0};
+    for(const auto& result : m_results) {
+        if(isSavable(result) && !result.writable)
+            ++count;
+    }
+    return count;
 }
 
 void BpmAnalyzerResultsModel::markSaved(const QSet<QString>& filepaths)
@@ -199,14 +206,14 @@ void BpmAnalyzerResultsModel::markSaved(const QSet<QString>& filepaths)
         auto& result = m_results[i];
         if(!filepaths.contains(result.track.uniqueFilepath()))
             continue;
-        if(result.status == BpmResult::Status::New
-           || result.status == BpmResult::Status::Updated) {
-            result.storedBpm = result.analyzedBpm;
-            result.status    = BpmResult::Status::Updated;
-            const QModelIndex first = index(static_cast<int>(i), 0);
-            const QModelIndex last  = index(static_cast<int>(i), columnCount() - 1);
-            emit dataChanged(first, last);
-        }
+        if(!isSavable(result))
+            continue;
+
+        result.storedBpm = result.analyzedBpm;
+        result.status    = BpmResult::Status::Updated;
+        const QModelIndex first = index(static_cast<int>(i), 0);
+        const QModelIndex last  = index(static_cast<int>(i), columnCount() - 1);
+        emit dataChanged(first, last);
     }
 }
 

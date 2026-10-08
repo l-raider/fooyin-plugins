@@ -59,6 +59,7 @@ create_fooyin_plugin(
             SoundTouch::SoundTouch
     SOURCES src/bpmanalyzerdefs.h
             src/bpmanalyzerresult.h
+            src/bpmanalyzercancellation.h
             src/bpmanalyzerworker.h
             src/bpmanalyzerworker.cpp
             src/bpmanalyzerscanner.h

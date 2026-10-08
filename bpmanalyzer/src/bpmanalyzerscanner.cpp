@@ -21,10 +21,10 @@
 #include "bpmanalyzerdefs.h"
 #include "bpmanalyzerworker.h"
 
-#include <core/coresettings.h>
-
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
+
+#include <algorithm>
 
 namespace Fooyin::BpmAnalyzer {
 
@@ -41,13 +41,14 @@ BpmAnalyzerScanner::BpmAnalyzerScanner(std::shared_ptr<AudioLoader> audioLoader,
 
 BpmAnalyzerScanner::~BpmAnalyzerScanner()
 {
+    m_token.cancel();
     m_watcher.cancel();
     m_watcher.waitForFinished();
 }
 
 void BpmAnalyzerScanner::close()
 {
-    m_cancelled.storeRelaxed(1);
+    m_token.cancel();
     m_watcher.cancel();
     // Don't waitForFinished() here — the destructor handles it safely.
     // Calling it while the watcher's finished signal is already queued on
@@ -56,15 +57,12 @@ void BpmAnalyzerScanner::close()
 
 void BpmAnalyzerScanner::scanTracks(const TrackList& tracks)
 {
-    m_cancelled.storeRelaxed(0);
+    m_token.reset();
 
-    FySettings settings;
-    const bool autoThreads =
-        settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
-    const int threadCount = autoThreads
-        ? QThread::idealThreadCount()
-        : std::max(1, settings.value(QLatin1String{SettingConcurrencyCount},
-                                     DefaultConcurrencyCount).toInt());
+    const BpmAnalyzerSettings settings = BpmAnalyzerSettings::load();
+    const int threadCount = settings.concurrencyAuto
+        ? std::max(1, QThread::idealThreadCount())
+        : std::max(1, settings.concurrencyCount);
 
     m_threadPool.setMaxThreadCount(threadCount);
 
@@ -72,7 +70,7 @@ void BpmAnalyzerScanner::scanTracks(const TrackList& tracks)
         &m_threadPool,
         tracks,
         [this](const Track& track) -> BpmResult {
-            return m_worker->computeBpm(track, m_cancelled);
+            return m_worker->computeBpm(track, m_token);
         }
     ));
 }
@@ -86,11 +84,7 @@ void BpmAnalyzerScanner::onResultReadyAt(int index)
 
 void BpmAnalyzerScanner::onFinished()
 {
-    if(m_cancelled.loadRelaxed()) {
-        emit scanFinished({});
-        return;
-    }
-    emit scanFinished(m_watcher.future().results());
+    emit scanFinished();
 }
 
 } // namespace Fooyin::BpmAnalyzer

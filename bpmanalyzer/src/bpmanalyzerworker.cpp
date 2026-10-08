@@ -18,26 +18,28 @@
 
 #include "bpmanalyzerworker.h"
 
+#include "bpmanalyzercancellation.h"
 #include "bpmanalyzerdefs.h"
 
-#include <core/coresettings.h>
+#include <core/constants.h>
 #include <core/engine/audiobuffer.h>
 #include <core/engine/audioconverter.h>
 #include <core/engine/audioformat.h>
 #include <core/engine/audioloader.h>
 #include <core/engine/audioinput.h>
+#include <utils/scopeguard.h>
 
 #include <BPMDetect.h>
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <utility>
 #include <vector>
-
-using namespace Qt::StringLiterals;
 
 namespace Fooyin::BpmAnalyzer {
 
@@ -87,6 +89,60 @@ convertToSoundTouchSamples(const AudioBuffer& buf)
 
 constexpr float kMinBpm = 45.0f;
 constexpr float kMaxBpm = 190.0f;
+
+//! CD audio sector size in frames (1/75 s at 44100 Hz), matching AccurateRip.
+constexpr uint64_t FramesPerSector = 588;
+
+std::optional<uint64_t> cueSectorProperty(const Track& track, const char* name)
+{
+    const auto properties   = track.extraProperties();
+    const auto* const value = properties.find(QString::fromLatin1(name));
+    if(!value) {
+        return {};
+    }
+
+    bool ok{false};
+    const uint64_t sector = value->toULongLong(&ok);
+    return ok ? std::optional<uint64_t>{sector} : std::optional<uint64_t>{};
+}
+
+uint64_t framesForDuration(uint64_t durationMs, int sampleRate)
+{
+    if(sampleRate <= 0) {
+        return 0;
+    }
+
+    const auto rate = static_cast<uint64_t>(sampleRate);
+    if(durationMs > std::numeric_limits<uint64_t>::max() / rate) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+
+    return durationMs * rate / 1000;
+}
+
+AudioBuffer trimBuffer(const AudioBuffer& buffer, uint64_t frames)
+{
+    if(!buffer.isValid() || std::cmp_greater_equal(frames, buffer.frameCount())) {
+        return buffer;
+    }
+
+    const auto bytes = static_cast<size_t>(buffer.format().bytesForFrames(static_cast<int>(frames)));
+    return {buffer.constData().first(bytes), buffer.format(), buffer.startTime()};
+}
+
+AudioBuffer removeLeadingFrames(const AudioBuffer& buffer, uint64_t frames)
+{
+    if(!buffer.isValid() || frames == 0) {
+        return buffer;
+    }
+
+    if(std::cmp_greater_equal(frames, buffer.frameCount())) {
+        return {};
+    }
+
+    const size_t offset = static_cast<size_t>(buffer.format().bytesForFrames(static_cast<int>(frames)));
+    return {buffer.constData().subspan(offset), buffer.format(), buffer.startTime()};
+}
 
 struct BpmCandidate
 {
@@ -194,15 +250,6 @@ float applyAggregation(const std::vector<BpmCandidate>& candidates,
     return fallbackBpm;
 }
 
-QString formatBpm(float bpm, int precision)
-{
-    switch(precision) {
-        case 1:  return QString::number(static_cast<double>(bpm), 'f', 1);
-        case 2:  return QString::number(static_cast<double>(bpm), 'f', 2);
-        default: return QString::number(static_cast<int>(std::round(bpm)));
-    }
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -214,29 +261,30 @@ BpmAnalyzerWorker::BpmAnalyzerWorker(std::shared_ptr<AudioLoader> audioLoader)
 { }
 
 BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
-                                        const QAtomicInt& cancelled) const
+                                        CancellationToken& token) const
 {
     // ---- Read settings ----
-    FySettings settings;
-
-    const auto method = static_cast<AggregationMethod>(
-        settings.value(QLatin1String{SettingAggregationMethod}, DefaultAggregationMethod).toInt());
-
-    const int sampleLength = std::clamp(
-        settings.value(QLatin1String{SettingAnalysisSampleLength}, DefaultSampleLength).toInt(),
-        1, 600);
-
-    const bool skipExisting =
-        settings.value(QLatin1String{SettingSkipExisting}, false).toBool();
-
-    const int precision =
-        settings.value(QLatin1String{SettingBpmPrecision}, DefaultBpmPrecision).toInt();
+    const BpmAnalyzerSettings settings = BpmAnalyzerSettings::load();
+    const auto method       = static_cast<AggregationMethod>(settings.aggregationMethod);
+    const int sampleLength  = settings.sampleLength;
+    const bool skipExisting = settings.skipExisting;
+    const int precision     = settings.bpmPrecision;
 
     // ---- Build result stub ----
     BpmResult result;
     result.track = track;
 
-    const QStringList existingBpm = track.extraTag(u"BPM"_s);
+    if(track.isRemote()) {
+        result.status      = BpmResult::Status::Error;
+        result.errorString = QObject::tr("Remote streams cannot be analyzed");
+        return result;
+    }
+
+    // Use fooyin's canonical editability check so CUE-bounded tracks (whose
+    // metadata belongs to the shared container file) are never written.
+    result.writable = track.isMetadataEditable(m_audioLoader->canWriteMetadata(track));
+
+    const QStringList existingBpm = track.extraTag(QLatin1String{BpmTagField});
     if(!existingBpm.isEmpty())
         result.storedBpm = existingBpm.first();
 
@@ -246,29 +294,80 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
     }
 
     // ---- Open decoder ----
+    // ForConversion selects the offline source policy and NoLooping disables
+    // all loop/repeat behaviour for the single pass.
     const auto loaded = m_audioLoader->loadDecoderForTrack(
         track,
-        AudioDecoder::NoSeeking | AudioDecoder::NoInfiniteLooping);
+        AudioDecoder::NoLooping | AudioDecoder::ForConversion);
 
-    if(!loaded.decoder) {
+    if(!loaded.decoder || !loaded.format) {
         result.status      = BpmResult::Status::Error;
         result.errorString = QObject::tr("No decoder available");
         return result;
     }
 
-    const AudioFormat fmt = loaded.format.value_or(AudioFormat{});
+    const AudioFormat fmt = *loaded.format;
     if(!fmt.isValid()) {
         result.status      = BpmResult::Status::Error;
         result.errorString = QObject::tr("Could not determine audio format");
         return result;
     }
 
-    const int sampleRate  = fmt.sampleRate();
-    const int inputChans  = fmt.channelCount();
+    const int sampleRate = fmt.sampleRate();
+    const int inputChans = fmt.channelCount();
     if(sampleRate <= 0 || inputChans <= 0) {
         result.status      = BpmResult::Status::Error;
         result.errorString = QObject::tr("Invalid audio format (zero rate or channels)");
         return result;
+    }
+
+    const auto cueStartSector = cueSectorProperty(track, Constants::CueIndex01Sector);
+    const auto cueEndSector   = cueSectorProperty(track, Constants::CueEndSector);
+
+    if(cueStartSector && cueEndSector && *cueEndSector <= *cueStartSector) {
+        result.status      = BpmResult::Status::Error;
+        result.errorString = QObject::tr("Invalid CUE track boundaries");
+        return result;
+    }
+
+    AudioDecoder* const decoder = loaded.decoder.get();
+    decoder->start();
+    token.registerDecoder(decoder);
+    const auto stopDecoder = scopeGuard([&token, decoder] {
+        token.unregisterDecoder(decoder);
+        decoder->stop();
+    });
+
+    // Honour segment boundaries: seek to the segment offset unless the track
+    // is CUE-bounded, in which case the sector properties define the region.
+    if(track.offset() > 0 && !cueStartSector) {
+        if(!decoder->isSeekable()) {
+            result.status      = BpmResult::Status::Error;
+            result.errorString = QObject::tr("Decoder cannot seek to the track segment");
+            return result;
+        }
+        decoder->seek(track.offset());
+    }
+
+    uint64_t framesToSkip = cueStartSector.value_or(0) * FramesPerSector;
+    std::optional<uint64_t> framesRemaining;
+
+    if(cueStartSector && cueEndSector) {
+        framesRemaining = (*cueEndSector - *cueStartSector) * FramesPerSector;
+
+        // BPM analysis tolerates approximate alignment, so avoid decoding and
+        // discarding the whole file prefix for every CUE track by seeking to
+        // the segment start when the decoder supports it. The sector -> ms
+        // conversion assumes CD audio (588 frames/sector at the decoded rate).
+        if(decoder->isSeekable()) {
+            const uint64_t startMs
+                = *cueStartSector * FramesPerSector * 1000 / static_cast<uint64_t>(sampleRate);
+            decoder->seek(startMs);
+            framesToSkip = 0;
+        }
+    }
+    else if(track.isBoundedSegment() && track.duration() > 0 && !cueStartSector) {
+        framesRemaining = framesForDuration(track.duration(), sampleRate);
     }
 
     // ---- Initialise BPMDetect ----
@@ -277,20 +376,56 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
     soundtouch::BPMDetect detector(inputChans, sampleRate);
 
     // ---- Decode and feed samples ----
-    const qint64 maxFrames = static_cast<qint64>(sampleLength) * sampleRate;
+    const qint64 maxFrames       = static_cast<qint64>(sampleLength) * sampleRate;
     qint64       framesProcessed = 0;
 
-    loaded.decoder->start();
-
     constexpr size_t ChunkBytes = 65536;
-    while(!cancelled.loadRelaxed() && framesProcessed < maxFrames) {
-        AudioBuffer buf = loaded.decoder->readBuffer(ChunkBytes);
-        if(!buf.isValid() || buf.byteCount() == 0)
+    while(!token.isCancelled() && framesProcessed < maxFrames) {
+        auto read = decoder->readAudio(ChunkBytes);
+
+        if(read.status == AudioDecoder::ReadStatus::NeedMoreInput) {
+            continue;
+        }
+
+        if(read.status == AudioDecoder::ReadStatus::Error) {
+            result.status      = BpmResult::Status::Error;
+            result.errorString = read.error.isEmpty() ? QObject::tr("Decoder error") : read.error;
+            return result;
+        }
+
+        if(read.status == AudioDecoder::ReadStatus::EndOfStream) {
+            if(framesToSkip > 0 || (framesRemaining && *framesRemaining > 0)) {
+                result.status      = BpmResult::Status::Error;
+                result.errorString = QObject::tr("Decoder ended before the track segment was complete");
+                return result;
+            }
             break;
+        }
+
+        AudioBuffer buf = std::move(read.buffer);
+        if(!buf.isValid()) {
+            result.status      = BpmResult::Status::Error;
+            result.errorString = QObject::tr("Decoder returned invalid audio");
+            return result;
+        }
+
+        if(framesToSkip > 0) {
+            const uint64_t skipped
+                = std::min<uint64_t>(framesToSkip, static_cast<uint64_t>(buf.frameCount()));
+            buf = removeLeadingFrames(buf, skipped);
+            framesToSkip -= skipped;
+            if(!buf.isValid()) {
+                continue;
+            }
+        }
+
+        if(framesRemaining) {
+            buf = trimBuffer(buf, *framesRemaining);
+            *framesRemaining -= static_cast<uint64_t>(buf.frameCount());
+        }
 
         auto samples = convertToSoundTouchSamples(buf);
         if(!samples) {
-            loaded.decoder->stop();
             result.status      = BpmResult::Status::Error;
             result.errorString = QObject::tr("Audio format conversion failed");
             return result;
@@ -305,11 +440,13 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
         }
 
         framesProcessed += buf.frameCount();
+
+        if(framesRemaining && *framesRemaining == 0) {
+            break;
+        }
     }
 
-    loaded.decoder->stop();
-
-    if(cancelled.loadRelaxed()) {
+    if(token.isCancelled()) {
         result.status      = BpmResult::Status::Error;
         result.errorString = QObject::tr("Cancelled");
         return result;
@@ -330,7 +467,7 @@ BpmResult BpmAnalyzerWorker::computeBpm(const Track& track,
         return result;
     }
 
-    result.analyzedBpm = formatBpm(bpm, precision);
+    result.analyzedBpm = formatBpmValue(bpm, precision);
     result.status = result.storedBpm.isEmpty() ? BpmResult::Status::New
                                                : BpmResult::Status::Updated;
     return result;

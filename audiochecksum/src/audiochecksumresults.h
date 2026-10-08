@@ -65,14 +65,13 @@ public:
                          QWidget* parent = nullptr);
 
     [[nodiscard]] QSize sizeHint() const override;
-    [[nodiscard]] QSize minimumSizeHint() const override;
 
 protected:
     void closeEvent(QCloseEvent* event) override;
 
 private:
     void startScan();
-    void onScanFinished(const QList<ChecksumResult>& results);
+    void onScanFinished();
     void saveToTags();
     void cancelActive();
     void setupContextMenu();

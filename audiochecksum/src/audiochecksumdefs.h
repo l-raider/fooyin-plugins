@@ -19,6 +19,7 @@
 #pragma once
 
 #include <core/coresettings.h>
+#include <core/track.h>
 
 #include <QString>
 
@@ -29,17 +30,44 @@ constexpr auto DefaultTagFieldName = "AUDIOCHECKSUM_MD5";
 
 // Settings keys
 constexpr auto SettingTagField          = "AudioChecksum/TagField";
-constexpr auto SettingSkipExisting      = "AudioChecksum/SkipExisting";
 constexpr auto SettingConcurrencyAuto   = "AudioChecksum/ConcurrencyAuto";
 constexpr auto SettingConcurrencyCount  = "AudioChecksum/ConcurrencyCount";
 constexpr int  DefaultConcurrencyCount  = 1;
 
-// Returns the currently configured tag field name, falling back to the default.
-inline QString tagFieldName()
+//! Single source of truth for the plugin's persisted settings.
+struct AudioChecksumSettings
 {
-    FySettings s;
-    return s.value(QLatin1String{SettingTagField},
-                   QLatin1String{DefaultTagFieldName}).toString();
+    QString tagField{QLatin1String{DefaultTagFieldName}};
+    bool concurrencyAuto{false};
+    int concurrencyCount{DefaultConcurrencyCount};
+
+    static AudioChecksumSettings load()
+    {
+        FySettings settings;
+        AudioChecksumSettings result;
+        result.tagField = settings.value(QLatin1String{SettingTagField},
+                                         QLatin1String{DefaultTagFieldName}).toString();
+        result.concurrencyAuto = settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
+        result.concurrencyCount = settings.value(QLatin1String{SettingConcurrencyCount},
+                                                 DefaultConcurrencyCount).toInt();
+        return result;
+    }
+
+    void save() const
+    {
+        FySettings settings;
+        settings.setValue(QLatin1String{SettingTagField}, tagField);
+        settings.setValue(QLatin1String{SettingConcurrencyAuto}, concurrencyAuto);
+        settings.setValue(QLatin1String{SettingConcurrencyCount}, concurrencyCount);
+    }
+};
+
+//! True for tracks that carry an authoritative FLAC STREAMINFO MD5.
+inline bool isFlacTrack(const Track& track)
+{
+    const QString codec = track.codec().toLower();
+    return codec == QLatin1StringView{"flac"}
+        || track.filepath().endsWith(QLatin1StringView{".flac"}, Qt::CaseInsensitive);
 }
 
 } // namespace Fooyin::AudioChecksum

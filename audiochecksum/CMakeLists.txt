@@ -4,7 +4,7 @@ project(
     audiochecksum
     VERSION 0.1.0
     DESCRIPTION "Audio checksum plugin for fooyin"
-    HOMEPAGE_URL "https://github.com/fooyin/fooyin-plugins"
+    HOMEPAGE_URL "https://github.com/l-raider/fooyin-plugins"
     LANGUAGES CXX
 )
 
@@ -25,6 +25,7 @@ create_fooyin_plugin(
             Qt6::Concurrent
     SOURCES src/audiochecksumdefs.h
             src/audiochecksumresult.h
+            src/audiochecksumcancellation.h
             src/flacstreaminfo.h
             src/flacstreaminfo.cpp
             src/audiochecksumworker.h

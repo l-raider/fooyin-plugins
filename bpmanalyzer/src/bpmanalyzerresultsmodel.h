@@ -65,10 +65,13 @@ public:
 
     /*!
      * Returns results that should be written to tags:
-        *   - Status::New/Updated rows whose analyzed BPM differs from the stored BPM
-     * Skipped and Error rows are excluded.
+     *   - Status::New/Updated rows whose analyzed BPM differs from the stored BPM
+     * Skipped, Error and non-writable rows are excluded.
      */
     [[nodiscard]] QList<BpmResult> resultsToSave() const;
+
+    /*! Number of otherwise-savable results skipped because their source is not writable. */
+    [[nodiscard]] int nonWritableCount() const;
 
     /*! Transition the saved rows to Updated (storedBpm ← analyzedBpm) after save. */
     void markSaved(const QSet<QString>& filepaths);

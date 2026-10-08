@@ -31,6 +31,8 @@
 #include <QThread>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 using namespace Qt::StringLiterals;
 
 namespace Fooyin::AudioChecksum {
@@ -45,11 +47,11 @@ AudioChecksumSettingsDialog::AudioChecksumSettingsDialog(QWidget* parent)
     setWindowTitle(tr("Audio Checksum Settings"));
     setModal(true);
 
+    const AudioChecksumSettings settings = AudioChecksumSettings::load();
+
     // --- Tag field ---
     auto* tagLabel = new QLabel(tr("Tag field name") + ":"_L1, this);
-    m_tagField->setText(
-        m_settings.value(QLatin1String{SettingTagField},
-                         QLatin1String{DefaultTagFieldName}).toString());
+    m_tagField->setText(settings.tagField);
 
     // --- Concurrency group ---
     const int maxThreads = std::max(1, QThread::idealThreadCount());
@@ -60,11 +62,9 @@ AudioChecksumSettingsDialog::AudioChecksumSettingsDialog(QWidget* parent)
     m_concurrencySlider->setSingleStep(1);
     m_concurrencySlider->setPageStep(1);
 
-    const bool isAuto = m_settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
-    const int savedCount = m_settings.value(QLatin1String{SettingConcurrencyCount},
-                                             DefaultConcurrencyCount).toInt();
+    const bool isAuto = settings.concurrencyAuto;
     m_autoConcurrency->setChecked(isAuto);
-    m_concurrencySlider->setValue(std::clamp(savedCount, 1, maxThreads));
+    m_concurrencySlider->setValue(std::clamp(settings.concurrencyCount, 1, maxThreads));
     m_concurrencySlider->setEnabled(!isAuto);
 
     const auto updateValueLabel = [this, maxThreads]() {
@@ -113,14 +113,15 @@ AudioChecksumSettingsDialog::AudioChecksumSettingsDialog(QWidget* parent)
 
 void AudioChecksumSettingsDialog::accept()
 {
+    AudioChecksumSettings settings = AudioChecksumSettings::load();
+
     const QString value = m_tagField->text().trimmed().toUpper();
     if(!value.isEmpty())
-        m_settings.setValue(QLatin1String{SettingTagField}, value);
+        settings.tagField = value;
 
-    m_settings.setValue(QLatin1String{SettingConcurrencyAuto},
-                        m_autoConcurrency->isChecked());
-    m_settings.setValue(QLatin1String{SettingConcurrencyCount},
-                        m_concurrencySlider->value());
+    settings.concurrencyAuto  = m_autoConcurrency->isChecked();
+    settings.concurrencyCount = m_concurrencySlider->value();
+    settings.save();
 
     done(Accepted);
 }

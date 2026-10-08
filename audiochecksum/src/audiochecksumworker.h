@@ -22,9 +22,6 @@
 
 #include <core/track.h>
 
-#include <QAtomicInt>
-#include <QObject>
-
 #include <memory>
 
 namespace Fooyin {
@@ -33,24 +30,23 @@ class AudioLoader;
 
 namespace Fooyin::AudioChecksum {
 
+class CancellationToken;
+
 /*!
  * Pure computation helper: decodes a track to PCM and hashes the audio data.
  *
  * computeChecksum() is safe to call from multiple threads concurrently as
  * long as the underlying AudioLoader is thread-safe for concurrent reads.
- * The cancelled flag is checked on every buffer iteration so that an in-
- * progress scan can be aborted promptly.
+ * The cancellation token is polled between reads and also aborts registered
+ * decoders so an in-progress scan can be stopped promptly.
  */
-class AudioChecksumWorker : public QObject
+class AudioChecksumWorker
 {
-    Q_OBJECT
-
 public:
-    explicit AudioChecksumWorker(std::shared_ptr<AudioLoader> audioLoader,
-                                 QObject* parent = nullptr);
+    explicit AudioChecksumWorker(std::shared_ptr<AudioLoader> audioLoader);
 
     [[nodiscard]] ChecksumResult computeChecksum(const Track& track,
-                                                 const QAtomicInt& cancelled) const;
+                                                 CancellationToken& token) const;
 
 private:
     std::shared_ptr<AudioLoader> m_audioLoader;

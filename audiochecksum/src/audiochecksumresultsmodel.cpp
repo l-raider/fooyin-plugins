@@ -18,10 +18,10 @@
 
 #include "audiochecksumresultsmodel.h"
 
+#include "audiochecksumdefs.h"
+
 #include <QFileInfo>
 #include <QString>
-
-using namespace Qt::StringLiterals;
 
 namespace Fooyin::AudioChecksum {
 
@@ -40,6 +40,15 @@ QString statusToString(ChecksumResult::Status status)
             return QObject::tr("Error");
     }
     return {};
+}
+
+//! True when the result warrants writing a tag. FLAC files carry an embedded
+//! STREAMINFO MD5 as their authoritative checksum, so they are never written.
+bool isSavable(const ChecksumResult& result)
+{
+    return (result.status == ChecksumResult::Status::New
+            || result.status == ChecksumResult::Status::Mismatch)
+        && !isFlacTrack(result.track);
 }
 
 } // namespace
@@ -160,20 +169,21 @@ QList<ChecksumResult> AudioChecksumResultsModel::resultsToSave() const
 {
     QList<ChecksumResult> toSave;
     for(const auto& result : m_results) {
-        if(result.status != ChecksumResult::Status::New
-           && result.status != ChecksumResult::Status::Mismatch)
+        if(!isSavable(result) || !result.writable)
             continue;
-
-        // FLAC files carry an embedded STREAMINFO MD5 as their authoritative
-        // checksum — we never write a tag for them.
-        const QString codec = result.track.codec().toLower();
-        if(codec == u"flac"
-           || result.track.filepath().endsWith(u".flac", Qt::CaseInsensitive))
-            continue;
-
         toSave.append(result);
     }
     return toSave;
+}
+
+int AudioChecksumResultsModel::nonWritableCount() const
+{
+    int count{0};
+    for(const auto& result : m_results) {
+        if(isSavable(result) && !result.writable)
+            ++count;
+    }
+    return count;
 }
 
 const QList<ChecksumResult>& AudioChecksumResultsModel::results() const
@@ -190,15 +200,9 @@ void AudioChecksumResultsModel::markSaved(const QSet<QString>& filepaths)
         auto& result = m_results[i];
         if(!filepaths.contains(result.track.uniqueFilepath()))
             continue;
-        if(result.status != ChecksumResult::Status::New
-           && result.status != ChecksumResult::Status::Mismatch)
-            continue;
-
         // FLAC files are never written (STREAMINFO MD5 is authoritative) —
         // keep their status intact so a Mismatch remains visible.
-        const QString codec = result.track.codec().toLower();
-        if(codec == u"flac"_s
-           || result.track.filepath().endsWith(u".flac"_s, Qt::CaseInsensitive))
+        if(!isSavable(result))
             continue;
 
         result.storedHash = result.computedHash;

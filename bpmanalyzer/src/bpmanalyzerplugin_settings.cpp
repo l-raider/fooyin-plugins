@@ -31,6 +31,8 @@
 #include <QThread>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 using namespace Qt::StringLiterals;
 
 namespace Fooyin::BpmAnalyzer {
@@ -48,15 +50,14 @@ BpmAnalyzerSettingsDialog::BpmAnalyzerSettingsDialog(QWidget* parent)
     setWindowTitle(tr("BPM Analyzer Settings"));
     setModal(true);
 
+    const BpmAnalyzerSettings settings = BpmAnalyzerSettings::load();
+
     // ---- Analysis group ----
     m_sampleLength->setRange(1, 600);
     m_sampleLength->setSuffix(tr(" s"));
-    m_sampleLength->setValue(
-        m_settings.value(QLatin1String{SettingAnalysisSampleLength},
-                         DefaultSampleLength).toInt());
+    m_sampleLength->setValue(settings.sampleLength);
 
-    m_skipExisting->setChecked(
-        m_settings.value(QLatin1String{SettingSkipExisting}, false).toBool());
+    m_skipExisting->setChecked(settings.skipExisting);
 
     auto* sampleLengthLabel = new QLabel(tr("Analysis length:"), this);
 
@@ -81,10 +82,7 @@ BpmAnalyzerSettingsDialog::BpmAnalyzerSettingsDialog(QWidget* parent)
                                  static_cast<int>(AggregationMethod::Mode));
 
     {
-        const int savedMethod =
-            m_settings.value(QLatin1String{SettingAggregationMethod},
-                             DefaultAggregationMethod).toInt();
-        const int idx = m_aggregationMethod->findData(savedMethod);
+        const int idx = m_aggregationMethod->findData(settings.aggregationMethod);
         m_aggregationMethod->setCurrentIndex(idx >= 0 ? idx : 0);
     }
 
@@ -103,10 +101,7 @@ BpmAnalyzerSettingsDialog::BpmAnalyzerSettingsDialog(QWidget* parent)
     m_bpmPrecision->addItem(tr("2 decimals (e.g. 120.53)"), 2);
 
     {
-        const int savedPrec =
-            m_settings.value(QLatin1String{SettingBpmPrecision},
-                             DefaultBpmPrecision).toInt();
-        const int idx = m_bpmPrecision->findData(savedPrec);
+        const int idx = m_bpmPrecision->findData(settings.bpmPrecision);
         m_bpmPrecision->setCurrentIndex(idx >= 0 ? idx : 0);
     }
 
@@ -128,13 +123,9 @@ BpmAnalyzerSettingsDialog::BpmAnalyzerSettingsDialog(QWidget* parent)
     m_concurrencySlider->setSingleStep(1);
     m_concurrencySlider->setPageStep(1);
 
-    const bool isAuto =
-        m_settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
-    const int savedCount =
-        m_settings.value(QLatin1String{SettingConcurrencyCount},
-                         DefaultConcurrencyCount).toInt();
+    const bool isAuto = settings.concurrencyAuto;
     m_autoConcurrency->setChecked(isAuto);
-    m_concurrencySlider->setValue(std::clamp(savedCount, 1, maxThreads));
+    m_concurrencySlider->setValue(std::clamp(settings.concurrencyCount, 1, maxThreads));
     m_concurrencySlider->setEnabled(!isAuto);
 
     const auto updateValueLabel = [this, maxThreads]() {
@@ -183,18 +174,14 @@ BpmAnalyzerSettingsDialog::BpmAnalyzerSettingsDialog(QWidget* parent)
 
 void BpmAnalyzerSettingsDialog::accept()
 {
-    m_settings.setValue(QLatin1String{SettingAnalysisSampleLength},
-                        m_sampleLength->value());
-    m_settings.setValue(QLatin1String{SettingSkipExisting},
-                        m_skipExisting->isChecked());
-    m_settings.setValue(QLatin1String{SettingAggregationMethod},
-                        m_aggregationMethod->currentData().toInt());
-    m_settings.setValue(QLatin1String{SettingBpmPrecision},
-                        m_bpmPrecision->currentData().toInt());
-    m_settings.setValue(QLatin1String{SettingConcurrencyAuto},
-                        m_autoConcurrency->isChecked());
-    m_settings.setValue(QLatin1String{SettingConcurrencyCount},
-                        m_concurrencySlider->value());
+    BpmAnalyzerSettings settings;
+    settings.sampleLength      = m_sampleLength->value();
+    settings.skipExisting      = m_skipExisting->isChecked();
+    settings.aggregationMethod = m_aggregationMethod->currentData().toInt();
+    settings.bpmPrecision      = m_bpmPrecision->currentData().toInt();
+    settings.concurrencyAuto   = m_autoConcurrency->isChecked();
+    settings.concurrencyCount  = m_concurrencySlider->value();
+    settings.save();
 
     done(Accepted);
 }

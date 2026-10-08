@@ -21,10 +21,10 @@
 #include "audiochecksumdefs.h"
 #include "audiochecksumworker.h"
 
-#include <core/coresettings.h>
-
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
+
+#include <algorithm>
 
 namespace Fooyin::AudioChecksum {
 
@@ -41,13 +41,14 @@ AudioChecksumScanner::AudioChecksumScanner(std::shared_ptr<AudioLoader> audioLoa
 
 AudioChecksumScanner::~AudioChecksumScanner()
 {
+    m_token.cancel();
     m_watcher.cancel();
     m_watcher.waitForFinished();
 }
 
 void AudioChecksumScanner::close()
 {
-    m_cancelled.storeRelaxed(1);
+    m_token.cancel();
     m_watcher.cancel();
     // Don't waitForFinished() here — the destructor handles it safely.
     // Calling it while the watcher's finished signal is already queued on
@@ -56,14 +57,12 @@ void AudioChecksumScanner::close()
 
 void AudioChecksumScanner::scanTracks(const TrackList& tracks)
 {
-    m_cancelled.storeRelaxed(0);
+    m_token.reset();
 
-    FySettings settings;
-    const bool autoThreads = settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
-    const int threadCount = autoThreads
-        ? QThread::idealThreadCount()
-        : std::max(1, settings.value(QLatin1String{SettingConcurrencyCount},
-                                     DefaultConcurrencyCount).toInt());
+    const AudioChecksumSettings settings = AudioChecksumSettings::load();
+    const int threadCount = settings.concurrencyAuto
+        ? std::max(1, QThread::idealThreadCount())
+        : std::max(1, settings.concurrencyCount);
 
     m_threadPool.setMaxThreadCount(threadCount);
 
@@ -71,7 +70,7 @@ void AudioChecksumScanner::scanTracks(const TrackList& tracks)
         &m_threadPool,
         tracks,
         [this](const Track& track) -> ChecksumResult {
-            return m_worker->computeChecksum(track, m_cancelled);
+            return m_worker->computeChecksum(track, m_token);
         }
     ));
 }
@@ -85,11 +84,7 @@ void AudioChecksumScanner::onResultReadyAt(int index)
 
 void AudioChecksumScanner::onFinished()
 {
-    if(m_cancelled.loadRelaxed()) {
-        emit scanFinished({});
-        return;
-    }
-    emit scanFinished(m_watcher.future().results());
+    emit scanFinished();
 }
 
 } // namespace Fooyin::AudioChecksum

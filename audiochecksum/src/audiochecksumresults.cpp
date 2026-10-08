@@ -150,7 +150,6 @@ void AudioChecksumResults::startScan()
     QObject::connect(m_scanner, &AudioChecksumScanner::trackScanned, this,
                      [this](const ChecksumResult& result) {
                          m_resultsModel->appendResult(result);
-                         m_resultsView->resizeColumnsToContents();
                      });
 
     QObject::connect(m_scanner, &AudioChecksumScanner::scanFinished, this,
@@ -159,7 +158,7 @@ void AudioChecksumResults::startScan()
     m_scanner->scanTracks(m_tracks);
 }
 
-void AudioChecksumResults::onScanFinished(const QList<ChecksumResult>& /*results*/)
+void AudioChecksumResults::onScanFinished()
 {
     m_scanning = false;
     if(m_scanner) {
@@ -189,6 +188,9 @@ void AudioChecksumResults::saveToTags()
     if(toSave.isEmpty())
         return;
 
+    const QString field = AudioChecksumSettings::load().tagField;
+    const int skipped   = m_resultsModel->nonWritableCount();
+
     auto targetPaths = std::make_shared<QSet<QString>>();
     targetPaths->reserve(toSave.size());
 
@@ -200,7 +202,7 @@ void AudioChecksumResults::saveToTags()
     TrackList tracks;
     tracks.reserve(toSave.size());
     for(auto& result : toSave) {
-        result.track.replaceExtraTag(tagFieldName(), result.computedHash);
+        result.track.replaceExtraTag(field, result.computedHash);
         const QString trackKey = result.track.uniqueFilepath();
         targetPaths->insert(trackKey);
         pathToHash->insert(trackKey, result.computedHash);
@@ -247,16 +249,19 @@ void AudioChecksumResults::saveToTags()
 
     auto* writeWatcher = new QFutureWatcher<WriteResult>(this);
     QObject::connect(writeWatcher, &QFutureWatcher<WriteResult>::finished,
-                     this, [this, targetPaths, savedPaths, pathToHash, conn, writeWatcher, total]() {
+                     this, [this, targetPaths, savedPaths, pathToHash, conn, writeWatcher, total, field, skipped]() {
                          QObject::disconnect(*conn);
 
                          const WriteResult result = writeWatcher->result();
                          writeWatcher->deleteLater();
 
+                         const QString skippedNote = skipped > 0
+                             ? " "_L1 + tr("Skipped %1 non-writable track(s).").arg(skipped)
+                             : QString{};
+
                          // Refresh m_tracks so the next Calculate run reads the
                          // correct stored hash rather than the pre-write value.
-                         const auto refreshTracks = [this, &pathToHash](const QSet<QString>& saved) {
-                             const QString field = tagFieldName();
+                         const auto refreshTracks = [this, &pathToHash, &field](const QSet<QString>& saved) {
                              for(Track& track : m_tracks) {
                                   const QString trackKey = track.uniqueFilepath();
                                   const auto it = pathToHash->find(trackKey);
@@ -269,7 +274,7 @@ void AudioChecksumResults::saveToTags()
                              m_progressBar->setValue(total);
                              m_resultsModel->markSaved(*targetPaths);
                              refreshTracks(*targetPaths);
-                             m_status->setText(tr("Tags saved."));
+                             m_status->setText(tr("Tags saved.") + skippedNote);
                          }
                          else {
                              m_progressBar->setValue(static_cast<int>(savedPaths->size()));
@@ -279,14 +284,16 @@ void AudioChecksumResults::saveToTags()
                                  m_status->setText(
                                      tr("Tag write cancelled (%1 / %2 saved).")
                                          .arg(static_cast<int>(savedPaths->size()))
-                                         .arg(total));
+                                         .arg(total)
+                                     + skippedNote);
                              }
                              else {
                                  m_status->setText(
                                      tr("Saved %1 / %2 tag(s); %3 failed.")
                                          .arg(result.succeeded)
                                          .arg(total)
-                                         .arg(result.failed));
+                                         .arg(result.failed)
+                                     + skippedNote);
                              }
                          }
 
@@ -339,6 +346,13 @@ void AudioChecksumResults::closeEvent(QCloseEvent* event)
         m_scanner->deleteLater();
         m_scanner = nullptr;
         m_scanning = false;
+    }
+    if(m_saving && m_writeCancel) {
+        // The dialog is closing (and will be deleted), so cancel the in-flight
+        // tag write instead of losing track of it.
+        m_writeCancel();
+        m_writeCancel = nullptr;
+        m_saving     = false;
     }
     QDialog::closeEvent(event);
 }
@@ -395,11 +409,6 @@ QSize AudioChecksumResults::sizeHint() const
     size.rheight() += 200;
     size.rwidth() += 600;
     return size;
-}
-
-QSize AudioChecksumResults::minimumSizeHint() const
-{
-    return QDialog::minimumSizeHint();
 }
 
 } // namespace Fooyin::AudioChecksum

@@ -40,6 +40,7 @@ struct ChecksumResult
     QString storedHash;      // from AUDIOCHECKSUM tag (or FLAC STREAMINFO MD5)
     Status status{Status::New};
     QString errorString;     // populated only when status == Error
+    bool writable{true};     // false when the source cannot store metadata
 };
 
 } // namespace Fooyin::AudioChecksum

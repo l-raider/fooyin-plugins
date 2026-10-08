@@ -39,6 +39,7 @@ struct BpmResult
     QString storedBpm;    ///< Value from the existing BPM tag (may be empty)
     Status  status{Status::New};
     QString errorString;  ///< Populated when status == Error
+    bool    writable{true};  ///< False when the source cannot store metadata
 };
 
 } // namespace Fooyin::BpmAnalyzer

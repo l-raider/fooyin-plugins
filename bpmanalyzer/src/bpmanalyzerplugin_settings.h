@@ -18,8 +18,6 @@
 
 #pragma once
 
-#include <core/coresettings.h>
-
 #include <QDialog>
 
 class QCheckBox;
@@ -40,8 +38,6 @@ public:
     void accept() override;
 
 private:
-    FySettings m_settings;
-
     // Analysis section
     QSpinBox*  m_sampleLength;
     QCheckBox* m_skipExisting;

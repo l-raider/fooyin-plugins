@@ -63,9 +63,13 @@ public:
      *   - New      → write computed hash for the first time
      *   - Mismatch → update the stored hash to the newly computed value
      *
-     * Results with Status::Match or Status::Error are excluded.
+     * Results with Status::Match or Status::Error, FLAC results and results
+     * whose source cannot store metadata are excluded.
      */
     [[nodiscard]] QList<ChecksumResult> resultsToSave() const;
+
+    /*! Number of otherwise-savable results skipped because their source is not writable. */
+    [[nodiscard]] int nonWritableCount() const;
 
     /*! Mark the saved New/Mismatch results as Match after tags have been written. */
     void markSaved(const QSet<QString>& filepaths);

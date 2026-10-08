@@ -22,6 +22,9 @@
 
 #include <QString>
 
+#include <algorithm>
+#include <cmath>
+
 namespace Fooyin::BpmAnalyzer {
 
 // Standard tag field written to track metadata
@@ -55,5 +58,59 @@ enum class AggregationMethod : int
     Median,               ///< Sorted mid-point of all candidates
     Mode,                 ///< Integer-BPM histogram bin with highest total weight
 };
+
+//! Single source of truth for the plugin's persisted settings.
+struct BpmAnalyzerSettings
+{
+    int sampleLength{DefaultSampleLength};
+    bool skipExisting{false};
+    int aggregationMethod{DefaultAggregationMethod};
+    int bpmPrecision{DefaultBpmPrecision};
+    bool concurrencyAuto{false};
+    int concurrencyCount{DefaultConcurrencyCount};
+
+    static BpmAnalyzerSettings load()
+    {
+        FySettings settings;
+        BpmAnalyzerSettings result;
+        result.sampleLength = std::clamp(
+            settings.value(QLatin1String{SettingAnalysisSampleLength},
+                           DefaultSampleLength).toInt(),
+            1, 600);
+        result.skipExisting = settings.value(QLatin1String{SettingSkipExisting}, false).toBool();
+        result.aggregationMethod = settings.value(QLatin1String{SettingAggregationMethod},
+                                                  DefaultAggregationMethod).toInt();
+        result.bpmPrecision = settings.value(QLatin1String{SettingBpmPrecision},
+                                             DefaultBpmPrecision).toInt();
+        result.concurrencyAuto = settings.value(QLatin1String{SettingConcurrencyAuto}, false).toBool();
+        result.concurrencyCount = settings.value(QLatin1String{SettingConcurrencyCount},
+                                                 DefaultConcurrencyCount).toInt();
+        return result;
+    }
+
+    void save() const
+    {
+        FySettings settings;
+        settings.setValue(QLatin1String{SettingAnalysisSampleLength}, sampleLength);
+        settings.setValue(QLatin1String{SettingSkipExisting}, skipExisting);
+        settings.setValue(QLatin1String{SettingAggregationMethod}, aggregationMethod);
+        settings.setValue(QLatin1String{SettingBpmPrecision}, bpmPrecision);
+        settings.setValue(QLatin1String{SettingConcurrencyAuto}, concurrencyAuto);
+        settings.setValue(QLatin1String{SettingConcurrencyCount}, concurrencyCount);
+    }
+};
+
+//! Formats a BPM value with the configured precision (0, 1 or 2 decimals).
+inline QString formatBpmValue(float bpm, int precision)
+{
+    switch(precision) {
+        case 1:
+            return QString::number(static_cast<double>(bpm), 'f', 1);
+        case 2:
+            return QString::number(static_cast<double>(bpm), 'f', 2);
+        default:
+            return QString::number(static_cast<int>(std::round(bpm)));
+    }
+}
 
 } // namespace Fooyin::BpmAnalyzer

@@ -18,8 +18,6 @@
 
 #pragma once
 
-#include <core/coresettings.h>
-
 #include <QDialog>
 
 class QCheckBox;
@@ -39,7 +37,6 @@ public:
     void accept() override;
 
 private:
-    FySettings m_settings;
     QLineEdit* m_tagField;
     QCheckBox* m_autoConcurrency;
     QSlider*   m_concurrencySlider;

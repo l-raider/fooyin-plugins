@@ -47,7 +47,9 @@ Candidates are sorted and the middle value is taken. A handful of wildly wrong b
 **Mode** *(most frequent integer BPM)*  
 Candidates are rounded to the nearest integer BPM and binned by total weight. The bin with the highest accumulated weight wins, always producing a whole-number result. Best for libraries where you want clean round values and the music has a steady, fixed tempo.
 
-### Shortcut Extender
+### ~~Shortcut Extender~~
 
-- Adds new shorcuts (hotkeys) under **Settings → Shortcuts → Shortcut Extender**.  
-  - **Delete Currently Playing**: Deletes the currently playing/paused track's file (trashbin or permanent).  
+~~- Adds new shorcuts (hotkeys) under **Settings → Shortcuts → Shortcut Extender**.~~  
+~~  - **Delete Currently Playing**: Deletes the currently playing/paused track's file (trashbin or permanent).~~  
+
+**Note:** This plugin is deprecated and will no longer be updated, as Fooyin 0.13.1 now includes the features it provided.
