@@ -42,7 +42,7 @@ class AudioChecksumPlugin : public QObject,
                             public PluginConfigGuiPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.fooyin.fooyin.plugin/1.0" FILE "audiochecksum.json")
+    Q_PLUGIN_METADATA(IID FOOYIN_PLUGIN_IID FILE "audiochecksum.json")
     Q_INTERFACES(Fooyin::Plugin Fooyin::CorePlugin Fooyin::GuiPlugin Fooyin::PluginConfigGuiPlugin)
 
 public:

@@ -6,7 +6,7 @@
 - C++23 compiler (GCC 13+, Clang 16+)
 - Ninja (`ninja-build`)
 - Qt 6.4+ development files
-- fooyin **0.13.0 or newer** headers and CMake config (see below)
+- fooyin **0.14.0 or newer** headers and CMake config (see below)
 - taglib-devel ffmpeg-devel (needed to build fooyin itself)
 
 ### Debian/Ubuntu dependencies
@@ -105,10 +105,12 @@ cd audiochecksum
 
 ### Minimum fooyin version
 
-The plugins require fooyin **0.13.0** or newer. They use
-`AudioDecoder::readAudio()` and `requestAbort()` (available earlier), plus
-`AudioDecoder::VerifyIntegrity` and the CUE segment properties
-(`_CUE_INDEX01_SECTOR`/`_CUE_END_SECTOR`), which were added in 0.13.0.
+The plugins require fooyin **0.14.0** or newer. fooyin 0.14 bumped the plugin
+interface IID to `org.fooyin.fooyin.plugin/2` (`FOOYIN_PLUGIN_IID`), and
+plugins built against older headers are rejected as incompatible (and vice
+versa). Plugins must use the `FOOYIN_PLUGIN_IID` macro rather than a hardcoded
+IID string. They also use `AudioDecoder::VerifyIntegrity` and the CUE segment
+properties (`_CUE_INDEX01_SECTOR`/`_CUE_END_SECTOR`), added in 0.13.0.
 
 ---
 
